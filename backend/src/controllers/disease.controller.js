@@ -1,10 +1,14 @@
 const Disease = require('../models/Disease');
 const axios = require('axios');
 
+// ===== CẬP NHẬT: Populate Fertilizer & Pesticide =====
 // Lấy danh sách tất cả bệnh
 const getAllDiseases = async (req, res) => {
   try {
-    const diseases = await Disease.find().sort({ ten_benh: 1 });
+    const diseases = await Disease.find()
+      .populate('goi_y_phan_bon', 'ten_phan_bon thanh_phan')
+      .populate('goi_y_thuoc', 'ten_thuoc loai hoat_chat')
+      .sort({ ten_benh: 1 });
 
     console.log('✓ Lấy danh sách bệnh:', diseases.length);
 
@@ -22,10 +26,13 @@ const getAllDiseases = async (req, res) => {
   }
 };
 
+// ===== CẬP NHẬT: Populate Fertilizer & Pesticide =====
 // Lấy chi tiết 1 bệnh
 const getDiseaseById = async (req, res) => {
   try {
-    const disease = await Disease.findById(req.params.id);
+    const disease = await Disease.findById(req.params.id)
+      .populate('goi_y_phan_bon')
+      .populate('goi_y_thuoc');
 
     if (!disease) {
       return res.status(404).json({

@@ -55,6 +55,8 @@ import json
 import numpy as np
 from PIL import Image
 import tensorflow as tf
+import cv2
+from uuid import uuid4
 
 # ============================================================================
 # CẤUNHẠC
@@ -87,6 +89,27 @@ def load_model_and_labels():
     return model, labels
 
 
+def find_last_conv_layer(model):
+    """Tìm layer convolution cuối cùng trong model, kể cả model lồng nhau."""
+
+    conv_layer_types = (
+        tf.keras.layers.Conv2D,
+        tf.keras.layers.DepthwiseConv2D,
+        tf.keras.layers.SeparableConv2D,
+    )
+
+    for layer in reversed(getattr(model, "layers", [])):
+        if isinstance(layer, conv_layer_types):
+            return layer
+
+        if isinstance(layer, tf.keras.Model):
+            nested_layer = find_last_conv_layer(layer)
+            if nested_layer is not None:
+                return nested_layer
+
+    return None
+
+
 # ============================================================================
 # TIỀN XỬ LÝ ẢNH
 # ============================================================================
@@ -100,6 +123,67 @@ def preprocess_image(image_path):
     img_array = np.expand_dims(img_array, axis=0)  # Thêm batch dimension
     
     return img_array
+
+
+def generate_gradcam(image_path, model, class_index=None):
+    """Tạo ảnh Grad-CAM overlay để giải thích vùng ảnh quan trọng."""
+
+    base_model = model.layers[0] if getattr(model, "layers", []) and isinstance(model.layers[0], tf.keras.Model) else model
+    last_conv_layer = find_last_conv_layer(base_model)
+    if last_conv_layer is None:
+        return None
+
+    original_image = Image.open(image_path).convert("RGB")
+    original_array = np.array(original_image)
+    original_height, original_width = original_array.shape[:2]
+
+    img_array = preprocess_image(image_path)
+
+    classifier_head = tf.keras.Sequential(model.layers[1:])
+
+    grad_model = tf.keras.models.Model(
+        inputs=base_model.input,
+        outputs=[last_conv_layer.output, classifier_head(base_model.output)]
+    )
+
+    with tf.GradientTape() as tape:
+        conv_outputs, predictions = grad_model(img_array)
+        if class_index is None:
+            class_index = tf.argmax(predictions[0])
+        class_channel = predictions[:, class_index]
+
+    grads = tape.gradient(class_channel, conv_outputs)
+    if grads is None:
+        return None
+
+    pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
+    conv_outputs = conv_outputs[0]
+    heatmap = tf.reduce_sum(conv_outputs * pooled_grads, axis=-1)
+    heatmap = tf.maximum(heatmap, 0)
+
+    max_value = tf.reduce_max(heatmap)
+    if float(max_value.numpy()) == 0.0:
+        return None
+
+    heatmap = heatmap / max_value
+    heatmap = heatmap.numpy()
+    heatmap = cv2.resize(heatmap, (original_width, original_height))
+    heatmap = np.uint8(255 * heatmap)
+    heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
+
+    original_bgr = cv2.cvtColor(original_array, cv2.COLOR_RGB2BGR)
+    overlay = cv2.addWeighted(original_bgr, 0.6, heatmap, 0.4, 0)
+
+    gradcam_dir = os.path.join("uploads", "gradcam")
+    os.makedirs(gradcam_dir, exist_ok=True)
+
+    output_filename = f"gradcam-{uuid4().hex[:10]}.png"
+    output_path = os.path.join(gradcam_dir, output_filename)
+    cv2.imwrite(output_path, overlay)
+
+    return {
+        "overlay_path": f"/uploads/gradcam/{output_filename}"
+    }
 
 
 # ============================================================================
@@ -119,6 +203,8 @@ def predict(image_path, model, labels):
     predictions = model.predict(img_array, verbose=0)
     pred_idx = np.argmax(predictions[0])
     confidence = predictions[0][pred_idx] * 100
+
+    grad_cam = generate_gradcam(image_path, model, int(pred_idx))
     
     # Lấy tên bệnh
     disease_en = labels["classes"][pred_idx]
@@ -128,7 +214,8 @@ def predict(image_path, model, labels):
         "disease_en": disease_en,
         "disease_vi": disease_vi,
         "confidence": round(confidence, 2),
-        "top_3": get_top_3(predictions[0], labels)
+        "top_3": get_top_3(predictions[0], labels),
+        "grad_cam": grad_cam
     }
 
 

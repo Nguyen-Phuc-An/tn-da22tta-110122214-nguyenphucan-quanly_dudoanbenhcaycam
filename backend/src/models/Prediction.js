@@ -37,6 +37,10 @@ const predictionSchema = new mongoose.Schema({
     type: String,
     default: '',
   },
+  grad_cam_path: {
+    type: String,
+    default: '',
+  },
   ngay_du_doan: {
     type: Date,
     default: Date.now,

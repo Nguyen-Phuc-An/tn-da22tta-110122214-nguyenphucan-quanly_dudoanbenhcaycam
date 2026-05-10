@@ -104,6 +104,8 @@ const PredictPage = () => {
     return Math.round(conf);
   };
 
+  const gradCamPath = result?.grad_cam_path || result?.grad_cam?.overlay_path;
+
   // Helper function to format date safely
   const formatDate = (dateString) => {
     try {
@@ -128,6 +130,12 @@ const PredictPage = () => {
       console.error('DateTime parse error:', dateString, e);
       return 'N/A';
     }
+  };
+
+  const getGradCamUrl = (gradCamPath) => {
+    if (!gradCamPath) return '';
+    if (gradCamPath.startsWith('http')) return gradCamPath;
+    return `http://localhost:5000${gradCamPath}`;
   };
 
   // Pagination logic
@@ -208,6 +216,29 @@ const PredictPage = () => {
               >
                 {loading ? (<><FaHourglassHalf className="animate-spin" /> Đang dự đoán...</>) : (<><FaMicroscope /> Dự đoán</>)}
               </button>
+
+              {/* Grad-CAM */}
+                {getGradCamUrl(gradCamPath) ? (
+                  <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
+                    <p className="text-gray-600 text-sm font-semibold mb-3 flex items-center gap-2">
+                      <FaEye className="text-red-600" /> Grad-CAM - Vùng ảnh quan trọng
+                    </p>
+                    <img
+                      src={getGradCamUrl(gradCamPath)}
+                      alt="Grad-CAM overlay"
+                      className="w-full rounded-lg border border-gray-200 object-contain bg-gray-50"
+                    />
+                  </div>
+                ) : (
+                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <p className="text-gray-600 text-sm font-semibold mb-1 flex items-center gap-2">
+                      <FaEye className="text-gray-500" /> Grad-CAM
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      Chưa có ảnh Grad-CAM từ ML API. Hãy kiểm tra lại dịch vụ ML đã được khởi động với bản cập nhật mới.
+                    </p>
+                  </div>
+                )}
             </form>
           </div>
 
@@ -387,8 +418,6 @@ const PredictPage = () => {
               <div>
                 {selectedPrediction ? (
                   <div className="bg-white rounded-xl shadow-md p-6 sticky top-6 flex flex-col max-h-[800px]">
-                    <h3 className="text-lg font-bold text-gray-900 mb-4 flex-shrink-0">Chi Tiết</h3>
-
                     {/* Hình ảnh */}
                     {selectedPrediction.hinh_anh && (
                       <div className="mb-4 flex justify-center bg-gray-100 rounded-lg p-2 flex-shrink-0">

@@ -22,6 +22,16 @@ console.log('🔑 GEMINI_API_KEY loaded:', GEMINI_API_KEY ? `✓ (${GEMINI_API_K
 
 const genAI = GEMINI_API_KEY ? new GoogleGenerativeAI(GEMINI_API_KEY) : null;
 
+const formatFertilizerNames = (items = []) =>
+  items
+    .map((item) => item?.ten_phan_bon)
+    .filter(Boolean);
+
+const formatPesticideNames = (items = []) =>
+  items
+    .map((item) => item?.ten_thuoc)
+    .filter(Boolean);
+
 /**
  * Tạo tư vấn AI bằng Gemini (với nhiều bệnh)
  */
@@ -38,12 +48,17 @@ const generateAIAdvice = async (predictions, diseaseMap) => {
       const d = diseaseMap[p.label];
       if (!d) return "";
 
+      const allowedFertilizers = formatFertilizerNames(d.goi_y_phan_bon);
+      const allowedPesticides = formatPesticideNames(d.goi_y_thuoc);
+
       return `
 ${i + 1}. ${d.ten_benh} (${Math.round(p.confidence * 100)}%)
 
 * Mô tả: ${d.mo_ta}
 * Nguyên nhân: ${d.nguyen_nhan}
 * Hướng xử lý: ${d.huong_xu_ly}
+    * Phân bón được phép đề xuất: ${allowedFertilizers.length > 0 ? allowedFertilizers.join(', ') : 'Không có'}
+    * Thuốc được phép đề xuất: ${allowedPesticides.length > 0 ? allowedPesticides.join(', ') : 'Không có'}
       `;
     }).join('\n');
 
@@ -60,6 +75,9 @@ Yêu cầu:
 * Nếu nhiều bệnh → đưa giải pháp tổng hợp
 * Nếu là cây khỏe → chúc mừng
 * Viết ngắn gọn, dễ hiểu (3-5 câu)
+* Không được tự bịa tên phân bón hoặc thuốc
+* Chỉ được nhắc đến phân bón/thuốc nếu chúng xuất hiện trong mục "Phân bón được phép đề xuất" và "Thuốc được phép đề xuất"
+* Nếu không có danh sách phù hợp thì chỉ nói chưa có gợi ý cụ thể từ cơ sở dữ liệu
     `;
 
     const result = await model.generateContent(prompt);
@@ -174,6 +192,7 @@ const uploadPrediction = async (req, res) => {
     // ✓ 3. Lấy kết quả dự đoán từ Flask
     const mlData = mlResponse.data.data;
     console.log(`✓ ML API trả kết quả: ${mlData.disease_en} (confidence: ${mlData.confidence})`);
+    const gradCamPath = mlData.grad_cam?.overlay_path || '';
 
     // ✓ 3.1 Xử lý top_3: convert 100 → 1, sort, filter
     let predictions = mlData.top_3.map(item => ({
@@ -188,9 +207,12 @@ const uploadPrediction = async (req, res) => {
     console.log(`✓ Top 3 predictions:`, predictions.length);
 
     // ✓ 3.2 Lấy danh sách bệnh từ DB dùng find (không findOne)
+    // ===== CẬP NHẬT: Populate fertilizer & pesticide suggestions =====
     const diseases = await Disease.find({
       ten_benh_en: { $in: predictions.map(p => p.label) }
-    });
+    })
+      .populate('goi_y_phan_bon', 'ten_phan_bon thanh_phan cong_dung')
+      .populate('goi_y_thuoc', 'ten_thuoc loai hoat_chat cach_su_dung muc_do_doc_hai');
 
     if (diseases.length === 0) {
       console.error(`❌ Không tìm thấy bệnh cho predictions`);
@@ -244,6 +266,7 @@ const uploadPrediction = async (req, res) => {
       mo_ta_benh: mainDisease.mo_ta || 'Không có thông tin',
       huong_xu_ly: mainDisease.huong_xu_ly || 'Cần tư vấn chuyên gia',
       tuvan_ai: advice,  // Lưu tư vấn AI
+      grad_cam_path: gradCamPath,
       ngay_du_doan: new Date(),
     });
 
@@ -251,6 +274,7 @@ const uploadPrediction = async (req, res) => {
     console.log(`✓ Lưu dự đoán vào database`);
 
     // ✓ 7. Trả kết quả đầy đủ
+    // ===== CẬP NHẬT: Thêm fertilizer & pesticide suggestions =====
     res.status(201).json({
       success: true,
       message: 'Dự đoán thành công',
@@ -269,6 +293,15 @@ const uploadPrediction = async (req, res) => {
         }),
         
         advice,
+        grad_cam: mlData.grad_cam || null,
+        grad_cam_path: gradCamPath,
+        
+        // ===== MỚI: Gợi ý phân bón =====
+        phan_bon_goi_y: mainDisease.goi_y_phan_bon || [],
+        
+        // ===== MỚI: Gợi ý thuốc =====
+        thuoc_goi_y: mainDisease.goi_y_thuoc || [],
+        
         ngay_du_doan: prediction.ngay_du_doan,
       },
     });
@@ -336,9 +369,18 @@ const getPredictionById = async (req, res) => {
       });
     }
 
+    // ===== CẬP NHẬT: Lấy disease với populated suggestions =====
+    const disease = await Disease.findOne({ ten_benh: prediction.ket_qua_benh })
+      .populate('goi_y_phan_bon', 'ten_phan_bon thanh_phan cong_dung')
+      .populate('goi_y_thuoc', 'ten_thuoc loai hoat_chat cach_su_dung muc_do_doc_hai');
+
     res.json({
       success: true,
-      data: prediction,
+      data: {
+        ...prediction.toObject(),
+        phan_bon_goi_y: disease?.goi_y_phan_bon || [],
+        thuoc_goi_y: disease?.goi_y_thuoc || [],
+      },
     });
   } catch (error) {
     console.error('❌ Lỗi lấy chi tiết dự đoán:', error.message);
@@ -431,9 +473,24 @@ const getAllPredictions = async (req, res) => {
 
     console.log(`✓ Retrieved ${predictions.length} predictions`);
 
+    // ===== CẬP NHẬT: Fetch disease suggestions cho mỗi prediction =====
+    const predictionsWithSuggestions = await Promise.all(
+      predictions.map(async (pred) => {
+        const disease = await Disease.findOne({ ten_benh: pred.ket_qua_benh })
+          .populate('goi_y_phan_bon', 'ten_phan_bon thanh_phan')
+          .populate('goi_y_thuoc', 'ten_thuoc loai');
+        
+        return {
+          ...pred.toObject(),
+          phan_bon_goi_y: disease?.goi_y_phan_bon || [],
+          thuoc_goi_y: disease?.goi_y_thuoc || [],
+        };
+      })
+    );
+
     res.json({
       success: true,
-      data: predictions,
+      data: predictionsWithSuggestions,
     });
   } catch (error) {
     console.error('❌ Lỗi lấy danh sách dự đoán:', error.message);

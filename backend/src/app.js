@@ -15,6 +15,11 @@ const diseaseRoutes = require('./routes/disease.routes');
 const seasonRoutes = require('./routes/season.routes');
 const taskRoutes = require('./routes/task.routes');
 const chatRoutes = require('./routes/chat.routes');
+// ===== CẬP NHẬT: Thêm Fertilizer & Pesticide routes =====
+const fertilizerRoutes = require('./routes/fertilizer.routes');
+const pesticideRoutes = require('./routes/pesticide.routes');
+// ===== CẬP NHẬT: Thêm ML routes =====
+const mlRoutes = require('./routes/ml.routes');
 
 // Khởi tạo Express
 const app = express();
@@ -113,6 +118,11 @@ app.use('/api/diseases', diseaseRoutes);
 app.use('/api/seasons', seasonRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/chat', chatRoutes);
+// ===== CẬP NHẬT: Đăng ký Fertilizer & Pesticide routes =====
+app.use('/api/fertilizers', fertilizerRoutes);
+app.use('/api/pesticides', pesticideRoutes);
+// ===== CẬP NHẬT: Đăng ký ML routes =====
+app.use('/api/ml', mlRoutes);
 
 // Xử lý route không tồn tại
 app.use((req, res) => {

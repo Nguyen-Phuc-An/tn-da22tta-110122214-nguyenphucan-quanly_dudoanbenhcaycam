@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { FaChartBar, FaUsers, FaLeaf, FaCalendar, FaDollarSign, FaClipboard, FaCheckCircle, FaVirus, FaCamera, FaComments, FaKey, FaSignOutAlt } from 'react-icons/fa';
+import { FaChartBar, FaUsers, FaLeaf, FaCalendar, FaDollarSign, FaClipboard, FaCheckCircle, FaVirus, FaCamera, FaComments, FaFlask, FaPills, FaCog, FaKey, FaSignOutAlt } from 'react-icons/fa';
 import authService from '../../services/authService';
 
 const AdminLayout = ({ children }) => {
@@ -27,6 +27,11 @@ const AdminLayout = ({ children }) => {
     { label: '🦠 Bệnh', path: '/admin/diseases', icon: FaVirus },
     { label: '📸 Dự Đoán', path: '/admin/predictions', icon: FaCamera },
     { label: '💬 Chat AI', path: '/admin/chat', icon: FaComments },
+    // ===== CẬP NHẬT: Thêm Fertilizer & Pesticide menu =====
+    { label: '🌾 Phân Bón', path: '/admin/fertilizers', icon: FaFlask },
+    { label: '💊 Thuốc', path: '/admin/pesticides', icon: FaPills },
+    // ===== CẬP NHẬT: Thêm ML Training menu =====
+    { label: '⚙️ Đào Tạo ML', path: '/admin/ml-training', icon: FaCog },
   ];
 
   return (
@@ -51,7 +56,7 @@ const AdminLayout = ({ children }) => {
         </div>
 
         {/* Menu */}
-        <nav className="flex-1 p-4 space-y-2">
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
           {menuItems.map((item) => {
             const IconComponent = item.icon;
             const labelText = item.label.split(' ').slice(1).join(' '); // Remove emoji prefix

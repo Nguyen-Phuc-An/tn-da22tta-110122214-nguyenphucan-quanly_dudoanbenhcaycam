@@ -11,7 +11,7 @@ const AdminRoute = ({ children }) => {
 
   // Check if user is admin (vai_tro = 'admin')
   if (user.vai_tro !== 'admin') {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/user" replace />;
   }
 
   return children;

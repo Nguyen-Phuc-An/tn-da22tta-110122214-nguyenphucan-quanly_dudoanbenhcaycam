@@ -6,6 +6,7 @@ POST /predict - Upload ảnh, trả kết quả tiếng Việt
 import os
 import json
 from flask import Flask, request, jsonify
+from flask import send_from_directory
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 from predict import load_model_and_labels, predict
@@ -15,6 +16,7 @@ from predict import load_model_and_labels, predict
 # ============================================================================
 
 UPLOAD_FOLDER = "uploads"
+GRADCAM_FOLDER = os.path.join(UPLOAD_FOLDER, "gradcam")
 ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "gif", "bmp"}
 MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
 
@@ -28,6 +30,7 @@ CORS(app)
 
 # Tạo thư mục uploads
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(GRADCAM_FOLDER, exist_ok=True)
 
 # Load model & labels (1 lần khi khởi động)
 try:
@@ -46,6 +49,12 @@ except Exception as e:
 def allowed_file(filename):
     """Kiểm tra phần mở rộng file"""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+@app.route("/uploads/<path:filename>", methods=["GET"])
+def serve_upload(filename):
+    """Phục vụ các file ảnh upload và Grad-CAM."""
+    return send_from_directory(UPLOAD_FOLDER, filename)
 
 
 # ============================================================================
@@ -144,6 +153,26 @@ def predict_disease():
         return jsonify({
             "success": False,
             "error": f"❌ Lỗi dự đoán: {str(e)}"
+        }), 500
+
+
+@app.route("/reload-model", methods=["POST"])
+def reload_model():
+    """Tải lại model (dùng sau khi retrain)"""
+    global model, labels
+    try:
+        print("🔄 Reloading model...")
+        model, labels = load_model_and_labels()
+        print("✓ Model reloaded successfully!")
+        return jsonify({
+            "success": True,
+            "message": "Model reloaded successfully"
+        })
+    except Exception as e:
+        print(f"❌ Error reloading model: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
         }), 500
 
 

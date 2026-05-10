@@ -48,7 +48,12 @@ const jwt = require('jsonwebtoken');
 const authenticateToken = (req, res, next) => {
   // Lấy token từ header Authorization
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // "Bearer TOKEN"
+  let token = authHeader && authHeader.split(' ')[1]; // "Bearer TOKEN"
+
+  // Also check for token in query params (needed for SSE/EventSource)
+  if (!token && req.query.token) {
+    token = req.query.token;
+  }
 
   if (!token) {
     return res.status(401).json({

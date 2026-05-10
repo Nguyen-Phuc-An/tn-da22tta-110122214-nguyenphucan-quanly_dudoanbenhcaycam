@@ -32,12 +32,16 @@ const diseaseSchema = new mongoose.Schema({
     default: 'Trung bình',
   },
   goi_y_phan_bon: {
-    type: [String],
+    type: [mongoose.Schema.Types.ObjectId],
+    ref: 'Fertilizer',
     default: [],
+    // Danh sách phân bón gợi ý cho bệnh này
   },
   goi_y_thuoc: {
-    type: [String],
+    type: [mongoose.Schema.Types.ObjectId],
+    ref: 'Pesticide',
     default: [],
+    // Danh sách thuốc gợi ý cho bệnh này
   },
   ten_benh_en: {
     type: String,

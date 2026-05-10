@@ -88,7 +88,9 @@ const chatWithAI = async (req, res) => {
     // ✓ 6. Lấy thông tin bệnh từ Prediction
     const disease = await Disease.findOne({
       ten_benh: prediction.ket_qua_benh,
-    });
+    })
+      .populate('goi_y_phan_bon', 'ten_phan_bon')
+      .populate('goi_y_thuoc', 'ten_thuoc');
 
     if (!disease) {
       return res.status(500).json({
@@ -109,8 +111,8 @@ const chatWithAI = async (req, res) => {
 * Mô tả: ${disease.mo_ta}
 * Nguyên nhân: ${disease.nguyen_nhan}
 * Hướng xử lý: ${disease.huong_xu_ly}
-* Phân bón đề nghị: ${disease.goi_y_phan_bon.join(', ') || 'Không có'}
-* Thuốc đề nghị: ${disease.goi_y_thuoc.join(', ') || 'Không có'}
+  * Phân bón đề nghị: ${(disease.goi_y_phan_bon || []).map((item) => item.ten_phan_bon).filter(Boolean).join(', ') || 'Không có'}
+  * Thuốc đề nghị: ${(disease.goi_y_thuoc || []).map((item) => item.ten_thuoc).filter(Boolean).join(', ') || 'Không có'}
     `;
 
     // ✓ 8. Tạo prompt cho Gemini
@@ -127,7 +129,8 @@ Người dùng hỏi:
 "${message}"
 
 Yêu cầu:
-
+* Chỉ đề xuất phân bón/thuốc có trong phần thông tin bệnh ở trên
+* Không tự tạo tên phân bón/thuốc mới ngoài cơ sở dữ liệu
 * Trả lời đúng trọng tâm câu hỏi
 * Dễ hiểu, ngắn gọn (3-5 câu)
 * Nếu không đủ thông tin thì nói rõ

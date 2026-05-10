@@ -47,6 +47,12 @@ const PredictionsPage = () => {
     setSelectedPrediction(null);
   };
 
+  const getGradCamUrl = (gradCamPath) => {
+    if (!gradCamPath) return '';
+    if (gradCamPath.startsWith('http')) return gradCamPath;
+    return `http://localhost:5000${gradCamPath}`;
+  };
+
   // Reset to page 1 when search term changes
   useEffect(() => {
     setCurrentPage(1);
@@ -216,6 +222,18 @@ const PredictionsPage = () => {
                       </p>
                     </div>
                   )}                  
+
+                  {/* Grad-CAM */}
+                  {getGradCamUrl(selectedPrediction.grad_cam_path) && (
+                    <div>
+                      <p className="text-xs text-gray-600 uppercase font-semibold mb-2">Grad-CAM</p>
+                      <img
+                        src={getGradCamUrl(selectedPrediction.grad_cam_path)}
+                        alt="Grad-CAM overlay"
+                        className="w-full rounded-lg border border-gray-200 object-contain bg-gray-50"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Footer */}

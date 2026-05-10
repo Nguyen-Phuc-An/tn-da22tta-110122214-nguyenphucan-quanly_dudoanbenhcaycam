@@ -141,6 +141,12 @@ const HomePage = () => {
     }
   };
 
+  const getGradCamUrl = (gradCamPath) => {
+    if (!gradCamPath) return '';
+    if (gradCamPath.startsWith('http')) return gradCamPath;
+    return `http://localhost:5000${gradCamPath}`;
+  };
+
   return (
     <UserLayout>
       <div>
@@ -333,6 +339,20 @@ const HomePage = () => {
                   <div className="bg-blue-50 rounded-xl p-5 border-2 border-blue-300">
                     <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2"><FaBrain className="text-blue-600" /> Tư vấn AI từ Gemini</h4>
                     <p className="text-gray-800 leading-relaxed whitespace-pre-wrap">{predictionResult.advice}</p>
+                  </div>
+                )}
+
+                {/* Grad-CAM */}
+                {getGradCamUrl(predictionResult.grad_cam_path || predictionResult.grad_cam?.overlay_path) && (
+                  <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+                    <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                      <FaEye className="text-red-600" /> Grad-CAM - Vùng ảnh quan trọng
+                    </h4>
+                    <img
+                      src={getGradCamUrl(predictionResult.grad_cam_path || predictionResult.grad_cam?.overlay_path)}
+                      alt="Grad-CAM overlay"
+                      className="w-full rounded-lg border border-gray-200 object-contain bg-gray-50"
+                    />
                   </div>
                 )}
 

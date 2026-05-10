@@ -16,6 +16,11 @@ import SeasonsPage from './pages/Admin/SeasonsPage';
 import AdminExpensesPage from './pages/Admin/ExpensesPage';
 import AdminLogsPage from './pages/Admin/LogsPage';
 import AdminTasksPage from './pages/Admin/TasksPage';
+// ===== CẬP NHẬT: Thêm FertilizerPage & PesticidePage =====
+import FertilizerPage from './pages/Admin/FertilizerPage';
+import PesticidePage from './pages/Admin/PesticidePage';
+// ===== CẬP NHẬT: Thêm MLTrainingPage =====
+import MLTrainingPage from './pages/Admin/MLTrainingPage';
 // User Pages
 import HomePage from './pages/User/HomePage';
 import UserGardensPage from './pages/User/GardensPage';
@@ -25,6 +30,15 @@ import UserExpensesPage from './pages/User/ExpensesPage';
 import StatisticsPage from './pages/User/StatisticsPage';
 import ProfilePage from './pages/User/ProfilePage';
 import authService from './services/authService';
+
+const RootRedirect = () => {
+  if (!authService.isLoggedIn()) {
+    return <Navigate to="/login" replace />;
+  }
+
+  const user = authService.getCurrentUser();
+  return <Navigate to={user?.vai_tro === 'admin' ? '/admin' : '/user'} replace />;
+};
 
 function App() {
   useEffect(() => {
@@ -46,11 +60,7 @@ function App() {
           {/* Root route - redirect based on role */}
           <Route
             path="/"
-            element={
-              <PrivateRoute>
-                <Navigate to="/user" replace />
-              </PrivateRoute>
-            }
+            element={<RootRedirect />}
           />
 
           {/* User Routes */}
@@ -226,8 +236,35 @@ function App() {
             }
           />
 
+          {/* ===== CẬP NHẬT: Thêm routes cho Fertilizer & Pesticide ===== */}
+          <Route
+            path="/admin/fertilizers"
+            element={
+              <AdminRoute>
+                <FertilizerPage />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/pesticides"
+            element={
+              <AdminRoute>
+                <PesticidePage />
+              </AdminRoute>
+            }
+          />
+          {/* ===== CẬP NHẬT: Thêm route cho MLTrainingPage ===== */}
+          <Route
+            path="/admin/ml-training"
+            element={
+              <AdminRoute>
+                <MLTrainingPage />
+              </AdminRoute>
+            }
+          />
+
           {/* Catch all */}
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<RootRedirect />} />
         </Routes>
       </BrowserRouter>
 

@@ -7,16 +7,38 @@ import { useForm } from 'react-hook-form';
 
 const DiseasesPage = () => {
   const [diseases, setDiseases] = useState([]);
+  const [fertilizers, setFertilizers] = useState([]);
+  const [pesticides, setPesticides] = useState([]);
+  const [fertilizerSearch, setFertilizerSearch] = useState('');
+  const [pesticideSearch, setPesticideSearch] = useState('');
+  const [selectedFertilizers, setSelectedFertilizers] = useState([]);
+  const [selectedPesticides, setSelectedPesticides] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
-  const { register, handleSubmit, reset, watch } = useForm();
+  const { register, handleSubmit, reset } = useForm();
 
   useEffect(() => {
     fetchDiseases();
+    fetchSuggestions();
   }, []);
+
+  const fetchSuggestions = async () => {
+    try {
+      const [fertilizerRes, pesticideRes] = await Promise.all([
+        apiClient.get('/fertilizers'),
+        apiClient.get('/pesticides'),
+      ]);
+
+      setFertilizers(fertilizerRes.data.data || []);
+      setPesticides(pesticideRes.data.data || []);
+    } catch (error) {
+      console.error('❌ Error fetching suggestions:', error);
+      toast.error('Không thể tải danh sách gợi ý phân bón/thuốc');
+    }
+  };
 
   const fetchDiseases = async () => {
     try {
@@ -34,20 +56,31 @@ const DiseasesPage = () => {
 
   const onSubmit = async (data) => {
     try {
+      const payload = {
+        ...data,
+        goi_y_phan_bon: selectedFertilizers,
+        goi_y_thuoc: selectedPesticides,
+        muc_do_nguy_hiem: normalizeDangerLevel(data.muc_do_nguy_hiem),
+      };
+
       if (editingId) {
-        await apiClient.put(`/diseases/${editingId}`, data);
+        await apiClient.put(`/diseases/${editingId}`, payload);
         console.log('✓ Disease updated:', editingId);
         toast.success('Bệnh được cập nhật thành công');
         setDiseases(
-          diseases.map((d) => (d._id === editingId ? { ...d, ...data } : d))
+          diseases.map((d) => (d._id === editingId ? { ...d, ...payload } : d))
         );
       } else {
-        const res = await apiClient.post('/diseases', data);
+        const res = await apiClient.post('/diseases', payload);
         console.log('✓ Disease created:', res.data.data);
         toast.success('Bệnh được tạo thành công');
         setDiseases([...diseases, res.data.data]);
       }
       reset();
+      setSelectedFertilizers([]);
+      setSelectedPesticides([]);
+      setFertilizerSearch('');
+      setPesticideSearch('');
       setShowForm(false);
       setEditingId(null);
     } catch (err) {
@@ -58,9 +91,79 @@ const DiseasesPage = () => {
 
   const handleEdit = (disease) => {
     setEditingId(disease._id);
-    reset(disease);
+    reset({
+      ...disease,
+      goi_y_phan_bon: (disease.goi_y_phan_bon || []).map((item) => item?._id || item),
+      goi_y_thuoc: (disease.goi_y_thuoc || []).map((item) => item?._id || item),
+      muc_do_nguy_hiem: normalizeDangerLevel(disease.muc_do_nguy_hiem),
+    });
+    setSelectedFertilizers((disease.goi_y_phan_bon || []).map((item) => item?._id || item));
+    setSelectedPesticides((disease.goi_y_thuoc || []).map((item) => item?._id || item));
+    setFertilizerSearch('');
+    setPesticideSearch('');
     setShowForm(true);
   };
+
+  const clearFormState = () => {
+    reset();
+    setSelectedFertilizers([]);
+    setSelectedPesticides([]);
+    setFertilizerSearch('');
+    setPesticideSearch('');
+    setEditingId(null);
+  };
+
+  const addSelectedFertilizer = (fertilizerId) => {
+    if (selectedFertilizers.includes(fertilizerId)) return;
+    setSelectedFertilizers([...selectedFertilizers, fertilizerId]);
+    setFertilizerSearch('');
+  };
+
+  const addSelectedPesticide = (pesticideId) => {
+    if (selectedPesticides.includes(pesticideId)) return;
+    setSelectedPesticides([...selectedPesticides, pesticideId]);
+    setPesticideSearch('');
+  };
+
+  const removeSelectedFertilizer = (fertilizerId) => {
+    setSelectedFertilizers(selectedFertilizers.filter((id) => id !== fertilizerId));
+  };
+
+  const removeSelectedPesticide = (pesticideId) => {
+    setSelectedPesticides(selectedPesticides.filter((id) => id !== pesticideId));
+  };
+
+  const fertilizerLabel = (fertilizer) => {
+    return fertilizer?.ten_phan_bon || 'Không rõ tên';
+  };
+
+  const pesticideLabel = (pesticide) => {
+    return pesticide?.ten_thuoc || 'Không rõ tên';
+  };
+
+  const selectedFertilizerItems = selectedFertilizers
+    .map((id) => fertilizers.find((fertilizer) => fertilizer._id === id))
+    .filter(Boolean);
+
+  const selectedPesticideItems = selectedPesticides
+    .map((id) => pesticides.find((pesticide) => pesticide._id === id))
+    .filter(Boolean);
+
+  const filteredFertilizerSuggestions = fertilizerSearch.trim()
+    ? fertilizers.filter((fertilizer) =>
+        fertilizerLabel(fertilizer)
+          .toLowerCase()
+          .includes(fertilizerSearch.trim().toLowerCase())
+      )
+    : [];
+
+  const filteredPesticideSuggestions = pesticideSearch.trim()
+    ? pesticides.filter((pesticide) =>
+        pesticideLabel(pesticide)
+          .toLowerCase()
+          .includes(pesticideSearch.trim().toLowerCase())
+      )
+    : [];
 
   const handleDeleteDisease = async (diseaseId) => {
     try {
@@ -81,6 +184,29 @@ const DiseasesPage = () => {
       disease.ten_benh_en?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const getDangerBadge = (level) => {
+    const colors = {
+      "Rất Cao": 'bg-red-100 text-red-800',
+      "Cao": 'bg-orange-100 text-orange-800',
+      "Trung bình": 'bg-yellow-100 text-yellow-800',
+      "Thấp": 'bg-green-100 text-green-800',
+      "Không": 'bg-blue-100 text-blue-800',
+    };
+
+    return colors[level] || 'bg-gray-100 text-gray-800';
+  };
+
+  const normalizeDangerLevel = (level) => {
+    const mapping = {
+      Low: 'Thấp',
+      Medium: 'Trung bình',
+      High: 'Cao',
+      Critical: 'Rất Cao',
+    };
+
+    return mapping[level] || level || '';
+  };
+
   return (
     <AdminLayout>
       <div>
@@ -89,8 +215,7 @@ const DiseasesPage = () => {
           <h1 className="text-3xl font-bold text-gray-900">Quản Lý Bệnh</h1>
           <button
             onClick={() => {
-              setEditingId(null);
-              reset();
+              clearFormState();
               setShowForm(!showForm);
             }}
             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center gap-2"
@@ -174,10 +299,49 @@ const DiseasesPage = () => {
                   </label>
                   <input
                     type="text"
-                    {...register('goi_y_phan_bon')}
+                    value={fertilizerSearch}
+                    onChange={(e) => setFertilizerSearch(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-                    placeholder="Fertilizer types (comma separated)"
+                    placeholder="Gõ tên phân bón để tìm..."
+                    autoComplete="off"
                   />
+                  {fertilizerSearch.trim() && (
+                    <div className="mt-2 border border-gray-200 rounded-lg bg-white shadow-sm max-h-48 overflow-auto">
+                      {filteredFertilizerSuggestions.length > 0 ? (
+                        filteredFertilizerSuggestions.map((fertilizer) => (
+                          <button
+                            key={fertilizer._id}
+                            type="button"
+                            onClick={() => addSelectedFertilizer(fertilizer._id)}
+                            className="w-full text-left px-3 py-2 hover:bg-red-50 transition border-b last:border-b-0"
+                          >
+                            {fertilizerLabel(fertilizer)}
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-3 py-2 text-sm text-gray-500">
+                          Không tìm thấy phân bón phù hợp
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {selectedFertilizerItems.map((fertilizer) => (
+                      <span
+                        key={fertilizer._id}
+                        className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-50 text-red-700 text-sm"
+                      >
+                        {fertilizerLabel(fertilizer)}
+                        <button
+                          type="button"
+                          onClick={() => removeSelectedFertilizer(fertilizer._id)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <FaTimes />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -185,10 +349,49 @@ const DiseasesPage = () => {
                   </label>
                   <input
                     type="text"
-                    {...register('goi_y_thuoc')}
+                    value={pesticideSearch}
+                    onChange={(e) => setPesticideSearch(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-                    placeholder="Medicine types (comma separated)"
+                    placeholder="Gõ tên thuốc để tìm..."
+                    autoComplete="off"
                   />
+                  {pesticideSearch.trim() && (
+                    <div className="mt-2 border border-gray-200 rounded-lg bg-white shadow-sm max-h-48 overflow-auto">
+                      {filteredPesticideSuggestions.length > 0 ? (
+                        filteredPesticideSuggestions.map((pesticide) => (
+                          <button
+                            key={pesticide._id}
+                            type="button"
+                            onClick={() => addSelectedPesticide(pesticide._id)}
+                            className="w-full text-left px-3 py-2 hover:bg-red-50 transition border-b last:border-b-0"
+                          >
+                            {pesticideLabel(pesticide)}
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-3 py-2 text-sm text-gray-500">
+                          Không tìm thấy thuốc phù hợp
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {selectedPesticideItems.map((pesticide) => (
+                      <span
+                        key={pesticide._id}
+                        className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-50 text-red-700 text-sm"
+                      >
+                        {pesticideLabel(pesticide)}
+                        <button
+                          type="button"
+                          onClick={() => removeSelectedPesticide(pesticide._id)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <FaTimes />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -201,10 +404,10 @@ const DiseasesPage = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
                 >
                   <option value="">Chọn mức độ</option>
-                  <option value="Low">Thấp</option>
-                  <option value="Medium">Trung Bình</option>
-                  <option value="High">Cao</option>
-                  <option value="Critical">Rất Cao</option>
+                  <option value="Thấp">Thấp</option>
+                  <option value="Trung bình">Trung bình</option>
+                  <option value="Cao">Cao</option>
+                  <option value="Rất Cao">Rất Cao</option>
                 </select>
               </div>
 
@@ -219,8 +422,7 @@ const DiseasesPage = () => {
                   type="button"
                   onClick={() => {
                     setShowForm(false);
-                    reset();
-                    setEditingId(null);
+                    clearFormState();
                   }}
                   className="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition flex items-center justify-center gap-2"
                 >
@@ -279,15 +481,9 @@ const DiseasesPage = () => {
                     </td>
                     <td className="px-6 py-4 text-center whitespace-nowrap">
                       <span
-                        className={`px-2 py-1 text-xs rounded-full font-semibold ${
-                          disease.muc_do_nguy_hiem === 'Critical'
-                            ? 'bg-red-100 text-red-800'
-                            : disease.muc_do_nguy_hiem === 'High'
-                            ? 'bg-orange-100 text-orange-800'
-                            : disease.muc_do_nguy_hiem === 'Medium'
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-green-100 text-green-800'
-                        }`}
+                        className={`px-2 py-1 rounded text-xs font-semibold ${getDangerBadge(
+                          disease.muc_do_nguy_hiem
+                        )}`}
                       >
                         {disease.muc_do_nguy_hiem || 'N/A'}
                       </span>
@@ -297,13 +493,13 @@ const DiseasesPage = () => {
                         onClick={() => handleEdit(disease)}
                         className="px-3 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition text-sm"
                       >
-                        <FaEdit className="inline mr-1" /> Edit
+                        <FaEdit className="inline mr-1" /> Sửa
                       </button>
                       <button
                         onClick={() => setShowDeleteConfirm(disease._id)}
                         className="px-3 py-1 bg-red-50 text-red-600 rounded hover:bg-red-100 transition text-sm"
                       >
-                        <FaTrash className="inline mr-1" /> Delete
+                        <FaTrash className="inline mr-1" /> Xóa
                       </button>
                     </td>
                   </tr>
@@ -322,7 +518,6 @@ const DiseasesPage = () => {
               </h3>
               <p className="text-gray-600 mb-6">
                 Bạn có chắc chắn muốn xóa bệnh này không? Hành động này không thể hoàn tác.
-                undone.
               </p>
               <div className="flex gap-3">
                 <button

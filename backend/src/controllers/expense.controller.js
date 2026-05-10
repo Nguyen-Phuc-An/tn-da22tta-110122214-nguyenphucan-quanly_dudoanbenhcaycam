@@ -3,6 +3,13 @@ const Garden = require('../models/Garden');
 const Season = require('../models/Season');
 const User = require('../models/User');
 
+const normalizeExpenseItem = (item) => ({
+  ten_mat_hang: String(item?.ten_mat_hang || '').trim(),
+  so_luong: Number(item?.so_luong),
+  don_vi: String(item?.don_vi || '').trim(),
+  gia_tien: Number(item?.gia_tien),
+});
+
 // Tạo chi phí mới
 const createExpense = async (req, res) => {
   try {
@@ -34,7 +41,7 @@ const createExpense = async (req, res) => {
       });
     }
 
-    if (user.vai_tro !== 'admin' && garden.user_id.toString() !== req.userId) {
+    if (user.vai_tro !== 'admin' && String(garden.user_id || '') !== String(req.userId || '')) {
       return res.status(403).json({
         success: false,
         message: 'Bạn không có quyền thêm chi phí cho vườn này',
@@ -51,16 +58,18 @@ const createExpense = async (req, res) => {
     }
 
     // Kiểm tra mùa vụ thuộc vườn này
-    if (season.garden_id.toString() !== garden_id) {
+    if (season.garden_id && String(season.garden_id) !== String(garden_id)) {
       return res.status(400).json({
         success: false,
         message: 'Mùa vụ không thuộc vườn này',
       });
     }
 
+    const normalizedItems = items.map(normalizeExpenseItem);
+
     // Validate items có dữ liệu hợp lệ
-    for (const item of items) {
-      if (!item.ten_mat_hang || !item.so_luong || !item.don_vi || item.gia_tien === undefined) {
+    for (const item of normalizedItems) {
+      if (!item.ten_mat_hang || !Number.isFinite(item.so_luong) || !item.don_vi || !Number.isFinite(item.gia_tien)) {
         return res.status(400).json({
           success: false,
           message: 'Mỗi mặt hàng phải có: tên, số lượng, đơn vị, và giá tiền',
@@ -85,11 +94,11 @@ const createExpense = async (req, res) => {
       garden_id,
       season_id,
       loai_chi_phi,
-      items: items.map((item) => ({
+      items: normalizedItems.map((item) => ({
         ten_mat_hang: item.ten_mat_hang,
-        so_luong: Number(item.so_luong),
+        so_luong: item.so_luong,
         don_vi: item.don_vi,
-        gia_tien: Number(item.gia_tien),
+        gia_tien: item.gia_tien,
         tong_tien: 0, // Sẽ được tính trong middleware
       })),
       ngay: ngay || new Date(),
@@ -110,6 +119,12 @@ const createExpense = async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Lỗi tạo chi phí:', error.message);
+    if (error.name === 'ValidationError' || error.name === 'CastError') {
+      return res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
     res.status(500).json({
       success: false,
       message: error.message,
@@ -210,7 +225,7 @@ const updateExpense = async (req, res) => {
       });
     }
 
-    if (user.vai_tro !== 'admin' && garden.user_id.toString() !== req.userId) {
+    if (user.vai_tro !== 'admin' && String(garden.user_id || '') !== String(req.userId || '')) {
       return res.status(403).json({
         success: false,
         message: 'Bạn không có quyền cập nhật chi phí này',
@@ -238,8 +253,10 @@ const updateExpense = async (req, res) => {
         });
       }
 
-      for (const item of items) {
-        if (!item.ten_mat_hang || !item.so_luong || !item.don_vi || item.gia_tien === undefined) {
+      const normalizedItems = items.map(normalizeExpenseItem);
+
+      for (const item of normalizedItems) {
+        if (!item.ten_mat_hang || !Number.isFinite(item.so_luong) || !item.don_vi || !Number.isFinite(item.gia_tien)) {
           return res.status(400).json({
             success: false,
             message: 'Mỗi mặt hàng phải có: tên, số lượng, đơn vị, và giá tiền',
@@ -260,11 +277,11 @@ const updateExpense = async (req, res) => {
       }
 
       // Cập nhật items
-      expense.items = items.map((item) => ({
+      expense.items = normalizedItems.map((item) => ({
         ten_mat_hang: item.ten_mat_hang,
-        so_luong: Number(item.so_luong),
+        so_luong: item.so_luong,
         don_vi: item.don_vi,
-        gia_tien: Number(item.gia_tien),
+        gia_tien: item.gia_tien,
         tong_tien: 0, // Sẽ được tính trong middleware
       }));
     }
@@ -288,6 +305,12 @@ const updateExpense = async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Lỗi cập nhật chi phí:', error.message);
+    if (error.name === 'ValidationError' || error.name === 'CastError') {
+      return res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
     res.status(500).json({
       success: false,
       message: error.message,

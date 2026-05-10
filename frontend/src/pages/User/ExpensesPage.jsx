@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 import { FaPlus, FaEdit, FaTrash, FaCheck, FaTimes } from 'react-icons/fa';
 import UserLayout from '../../components/User/UserLayout';
 import apiClient from '../../services/apiClient';
@@ -11,6 +12,8 @@ const ExpensesPage = () => {
   const [expenses, setExpenses] = useState([]);
   const [gardens, setGardens] = useState([]);
   const [seasons, setSeasons] = useState([]);
+  const [fertilizers, setFertilizers] = useState([]);
+  const [pesticides, setPesticides] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -33,7 +36,10 @@ const ExpensesPage = () => {
   });
 
   const [items, setItems] = useState([]);
+  const itemInputRefs = useRef([]);
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(null);
   const selectedGarden = watch('garden_id');
+  const selectedExpenseType = watch('loai_chi_phi');
 
   function getTodayDateString() {
     const today = new Date();
@@ -68,7 +74,22 @@ const ExpensesPage = () => {
     fetchExpenses();
     fetchGardens();
     fetchSeasons();
+    fetchSuggestionSources();
   }, []);
+
+  const fetchSuggestionSources = async () => {
+    try {
+      const [fertilizerRes, pesticideRes] = await Promise.all([
+        apiClient.get('/fertilizers'),
+        apiClient.get('/pesticides'),
+      ]);
+
+      setFertilizers(fertilizerRes.data.data || []);
+      setPesticides(pesticideRes.data.data || []);
+    } catch (err) {
+      console.error('❌ Error fetching expense suggestions:', err);
+    }
+  };
 
   const fetchExpenses = async () => {
     try {
@@ -115,6 +136,61 @@ const ExpensesPage = () => {
     }
     
     setItems(updatedItems);
+  };
+
+  const getItemSuggestions = (keyword) => {
+    const searchValue = (keyword || '').trim().toLowerCase();
+    if (!searchValue) return [];
+
+    if (selectedExpenseType === 'Phân bón') {
+      return fertilizers
+        .map((fertilizer) => fertilizer.ten_phan_bon)
+        .filter((name) => name?.toLowerCase().includes(searchValue));
+    }
+
+    if (selectedExpenseType === 'Thuốc') {
+      return pesticides
+        .map((pesticide) => pesticide.ten_thuoc)
+        .filter((name) => name?.toLowerCase().includes(searchValue));
+    }
+
+    return [];
+  };
+
+  const getSelectedItemSuggestion = (name) => {
+    if (selectedExpenseType === 'Phân bón') {
+      return fertilizers.find((fertilizer) => fertilizer.ten_phan_bon === name);
+    }
+
+    if (selectedExpenseType === 'Thuốc') {
+      return pesticides.find((pesticide) => pesticide.ten_thuoc === name);
+    }
+
+    return null;
+  };
+
+  const applyItemSuggestion = (index, value) => {
+    const suggestion = getSelectedItemSuggestion(value);
+    setItems((prevItems) => {
+      const updatedItems = [...prevItems];
+      const currentItem = {
+        ...updatedItems[index],
+        ten_mat_hang: value,
+      };
+
+      if (suggestion) {
+        currentItem.don_vi = suggestion.don_vi || '';
+        currentItem.gia_tien = Number(suggestion.gia_tien) || 0;
+      }
+
+      const so_luong = Number(currentItem.so_luong) || 0;
+      const gia_tien = Number(currentItem.gia_tien) || 0;
+      currentItem.tong_tien = so_luong * gia_tien;
+
+      updatedItems[index] = currentItem;
+      return updatedItems;
+    });
+    setActiveSuggestionIndex(null);
   };
 
   // Add new empty item row
@@ -222,6 +298,16 @@ const ExpensesPage = () => {
       expense.garden_id?.ten_vuon?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       expense.loai_chi_phi?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const getGardenName = (garden) => {
+    if (!garden) return '—';
+    if (typeof garden === 'object') {
+      return garden.ten_vuon || '—';
+    }
+
+    const matchedGarden = gardens.find((item) => item._id === garden);
+    return matchedGarden?.ten_vuon || '—';
+  };
 
   // Pagination
   const totalPages = Math.ceil(filteredExpenses.length / itemsPerPage);
@@ -346,7 +432,7 @@ const ExpensesPage = () => {
                     Chưa có mặt hàng - Click "Thêm dòng" để bắt đầu
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <div className="relative z-20 overflow-x-auto overflow-y-visible">
                     <table className="w-full text-sm border-collapse">
                       <thead>
                         <tr className="bg-gray-50">
@@ -362,13 +448,70 @@ const ExpensesPage = () => {
                         {items.map((item, index) => (
                           <tr key={index} className="hover:bg-gray-50">
                             <td className="px-3 py-2 border">
-                              <input
-                                type="text"
-                                value={item.ten_mat_hang}
-                                onChange={(e) => handleItemChange(index, 'ten_mat_hang', e.target.value)}
-                                placeholder="Tên mặt hàng"
-                                className="w-full px-2 py-1 border rounded focus:outline-none focus:ring-1 focus:ring-green-500"
-                              />
+                              <div className="relative">
+                                <input
+                                  ref={(el) => {
+                                    itemInputRefs.current[index] = el;
+                                  }}
+                                  type="text"
+                                  value={item.ten_mat_hang}
+                                  onFocus={() => setActiveSuggestionIndex(index)}
+                                  onBlur={() => {
+                                    setTimeout(() => {
+                                      setActiveSuggestionIndex((currentIndex) =>
+                                        currentIndex === index ? null : currentIndex
+                                      );
+                                    }, 120);
+                                  }}
+                                  onChange={(e) => {
+                                    handleItemChange(index, 'ten_mat_hang', e.target.value);
+                                    setActiveSuggestionIndex(index);
+                                  }}
+                                  placeholder="Tên mặt hàng"
+                                  className="w-full px-2 py-1 border rounded focus:outline-none focus:ring-1 focus:ring-green-500"
+                                />
+                                {activeSuggestionIndex === index && ['Phân bón', 'Thuốc'].includes(selectedExpenseType) && item.ten_mat_hang?.trim() && (
+                                  (() => {
+                                    const anchor = itemInputRefs.current[index];
+                                    if (!anchor) return null;
+
+                                    const suggestions = getItemSuggestions(item.ten_mat_hang);
+                                    const rect = anchor.getBoundingClientRect();
+
+                                    return createPortal(
+                                      <div
+                                        className="fixed z-[9999] max-h-40 overflow-auto rounded-md border border-gray-200 bg-white shadow-lg"
+                                        style={{
+                                          top: rect.bottom + 4,
+                                          left: rect.left,
+                                          width: rect.width,
+                                        }}
+                                      >
+                                        {suggestions.length > 0 ? (
+                                          suggestions.map((suggestion) => (
+                                            <button
+                                              key={suggestion}
+                                              type="button"
+                                              onMouseDown={(event) => {
+                                                event.preventDefault();
+                                                applyItemSuggestion(index, suggestion);
+                                              }}
+                                              className="w-full px-3 py-2 text-left text-sm hover:bg-green-50 transition border-b last:border-b-0"
+                                            >
+                                              {suggestion}
+                                            </button>
+                                          ))
+                                        ) : (
+                                          <div className="px-3 py-2 text-sm text-gray-500">
+                                            Không tìm thấy gợi ý phù hợp
+                                          </div>
+                                        )}
+                                      </div>,
+                                      document.body
+                                    );
+                                  })()
+                                )}
+                              </div>
                             </td>
                             <td className="px-3 py-2 border">
                               <input
@@ -422,7 +565,7 @@ const ExpensesPage = () => {
 
               {/* Total Section */}
               {items.length > 0 && (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <div className="relative z-10 bg-green-50 border border-green-200 rounded-lg p-4">
                   <div className="flex justify-between items-center">
                     <span className="text-lg font-bold text-gray-900">Tổng cộng:</span>
                     <span className="text-2xl font-bold text-green-600">
@@ -471,7 +614,7 @@ const ExpensesPage = () => {
         {/* Table & Detail Panel */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Table */}
-          <div className="lg:col-span-2 bg-white rounded-lg shadow overflow-hidden">
+          <div className="lg:col-span-2 bg-white rounded-lg shadow overflow-hidden flex flex-col">
           {loading ? (
             <div className="p-8 text-center text-gray-600">Đang tải chi phí...</div>
           ) : filteredExpenses.length === 0 ? (
@@ -496,62 +639,64 @@ const ExpensesPage = () => {
               )}
             </div>
           ) : (
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">
-                    Vườn
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">
-                    Mùa Vụ
-                  </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase">
-                    Loại Chi Phí
-                  </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase">
-                    Tổng Tiền
-                  </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase">
-                    Ngày
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {paginatedExpenses.map((expense) => (
-                  <tr 
-                    key={expense._id} 
-                    onClick={() => setSelectedExpense(expense)}
-                    className={`cursor-pointer transition ${
-                      selectedExpense?._id === expense._id 
-                        ? 'bg-green-100' 
-                        : 'hover:bg-gray-50'
-                    }`}
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-gray-900 font-medium">{expense.garden_id?.ten_vuon}</span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-gray-900">{expense.season_id?.ten_mua_vu || '—'}</span>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
-                        {expense.loai_chi_phi}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-center whitespace-nowrap">
-                      <span className="text-gray-900 font-bold text-green-600">
-                        {new Intl.NumberFormat('vi-VN').format(expense.so_tien)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-center whitespace-nowrap">
-                      <span className="text-gray-600 text-sm">
-                        {new Date(expense.ngay).toLocaleDateString('vi-VN')}
-                      </span>
-                    </td>
+            <div className="max-h-[240px] overflow-y-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b sticky top-0 z-10">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">
+                      Vườn
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">
+                      Mùa Vụ
+                    </th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase">
+                      Loại Chi Phí
+                    </th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase">
+                      Tổng Tiền
+                    </th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase">
+                      Ngày
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y">
+                  {paginatedExpenses.map((expense) => (
+                    <tr 
+                      key={expense._id} 
+                      onClick={() => setSelectedExpense(expense)}
+                      className={`cursor-pointer transition ${
+                        selectedExpense?._id === expense._id 
+                          ? 'bg-green-100' 
+                          : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-gray-900 font-medium">{getGardenName(expense.garden_id)}</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-gray-900">{expense.season_id?.ten_mua_vu || '—'}</span>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                          {expense.loai_chi_phi}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-center whitespace-nowrap">
+                        <span className="text-gray-900 font-bold text-green-600">
+                          {new Intl.NumberFormat('vi-VN').format(expense.so_tien)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-center whitespace-nowrap">
+                        <span className="text-gray-600 text-sm">
+                          {new Date(expense.ngay).toLocaleDateString('vi-VN')}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
 
           {/* Pagination */}
@@ -598,7 +743,7 @@ const ExpensesPage = () => {
                 {/* Items List with Scrolling */}
                 <div className="flex-1 overflow-y-auto p-4">
                   {selectedExpense.items && selectedExpense.items.length > 0 ? (
-                    <div className="space-y-3">
+                    <div className="space-y-3 max-h-[240px] overflow-y-auto pr-2">
                       {selectedExpense.items.map((item, index) => (
                         <div key={index} className="border border-gray-200 rounded-lg p-3 hover:bg-gray-50 transition">
                           <div className="font-semibold text-gray-900 mb-2">{item.ten_mat_hang}</div>
