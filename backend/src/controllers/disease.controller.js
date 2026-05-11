@@ -1,5 +1,50 @@
 const Disease = require('../models/Disease');
 const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
+
+const ORGANIZED_DATASET_DIR = path.resolve(__dirname, '../../../ml/organized_dataset');
+const SAMPLE_IMAGE_LIMIT = 12;
+
+const diseaseFolderMapping = {
+  'Bệnh đốm đen': 'black_spot',
+  'Bệnh loét': 'canker',
+  'Thiếu dinh dưỡng': 'deficiency',
+  'Bệnh đốm dầu': 'greasy_spot',
+  'Bệnh vàng lá gân xanh': 'greening',
+  'Lá khỏe mạnh': 'healthy',
+  'Sâu vẽ bùa': 'leafminer',
+  'Bệnh nấm melanose': 'melanose',
+  'Nhiều bệnh': 'multiple',
+};
+
+const getDiseaseFolderName = (disease) => {
+  if (!disease) return '';
+  if (disease.ten_benh_en && diseaseFolderMapping[disease.ten_benh_en]) {
+    return disease.ten_benh_en;
+  }
+  if (disease.ten_benh && diseaseFolderMapping[disease.ten_benh]) {
+    return diseaseFolderMapping[disease.ten_benh];
+  }
+  return disease.ten_benh_en || disease.ten_benh || '';
+};
+
+const getSampleImagesForDisease = (folderName) => {
+  if (!folderName) return [];
+
+  const folderPath = path.join(ORGANIZED_DATASET_DIR, folderName);
+  if (!fs.existsSync(folderPath)) return [];
+
+  return fs
+    .readdirSync(folderPath)
+    .filter((file) => /\.(jpg|jpeg|png|webp)$/i.test(file))
+    .sort((a, b) => a.localeCompare(b))
+    .slice(0, SAMPLE_IMAGE_LIMIT)
+    .map((file) => ({
+      name: file,
+      url: `/disease-dataset/${folderName}/${file}`,
+    }));
+};
 
 // ===== CẬP NHẬT: Populate Fertilizer & Pesticide =====
 // Lấy danh sách tất cả bệnh
@@ -47,6 +92,39 @@ const getDiseaseById = async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Lỗi lấy chi tiết bệnh:', error.message);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+// Lấy thư viện bệnh kèm ảnh mẫu gốc từ organized_dataset
+const getDiseaseLibrary = async (req, res) => {
+  try {
+    const diseases = await Disease.find()
+      .sort({ ten_benh: 1 })
+      .lean();
+
+    const library = diseases.map((disease) => {
+      const folderName = getDiseaseFolderName(disease);
+      const sampleImages = getSampleImagesForDisease(folderName);
+
+      return {
+        ...disease,
+        folder_name: folderName,
+        sample_images: sampleImages,
+        sample_image_count: sampleImages.length,
+      };
+    });
+
+    res.json({
+      success: true,
+      count: library.length,
+      data: library,
+    });
+  } catch (error) {
+    console.error('❌ Lỗi lấy thư viện bệnh:', error.message);
     res.status(500).json({
       success: false,
       message: error.message,
@@ -358,6 +436,7 @@ const getDiseaseByEnName = async (req, res) => {
 module.exports = {
   getAllDiseases,
   getDiseaseById,
+  getDiseaseLibrary,
   getDiseaseByEnName,
   createDisease,
   updateDisease,

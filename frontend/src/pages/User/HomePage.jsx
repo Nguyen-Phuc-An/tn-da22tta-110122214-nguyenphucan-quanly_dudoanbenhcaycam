@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   FaHome, FaCamera, FaFlask, FaLeaf, FaChartBar, FaMicroscope, FaDollarSign,
   FaVirus, FaBolt, FaRedo, FaBrain, FaExclamationTriangle, FaImage, FaClock,
-  FaClipboardList, FaTrophy, FaList, FaCircle, FaPlus, FaFileAlt
+  FaClipboardList, FaTrophy, FaList, FaCircle, FaFileAlt
 } from 'react-icons/fa';
 import UserLayout from '../../components/User/UserLayout';
 import apiClient from '../../services/apiClient';
@@ -393,31 +393,6 @@ const HomePage = () => {
                 <p className="text-sm mt-2">Upload ảnh lá cây bên trái để bắt đầu</p>
               </div>
             )}
-          </div>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center gap-2"><FaBolt className="text-yellow-500" /> Hành động nhanh</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Link
-              to="/user/gardens/new"
-              className="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl p-6 shadow-md hover:shadow-lg hover:from-green-600 hover:to-green-700 transition text-center font-semibold flex items-center justify-center min-h-20 gap-2"
-            >
-              <FaPlus className="text-lg" /> Thêm vườn
-            </Link>
-            <Link
-              to="/user/logs/new"
-              className="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-xl p-6 shadow-md hover:shadow-lg hover:from-purple-600 hover:to-purple-700 transition text-center font-semibold flex items-center justify-center min-h-20 gap-2"
-            >
-              <FaPlus className="text-lg" /> Thêm nhật ký
-            </Link>
-            <Link
-              to="/user/expenses/new"
-              className="bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl p-6 shadow-md hover:shadow-lg hover:from-orange-600 hover:to-orange-700 transition text-center font-semibold flex items-center justify-center min-h-20 gap-2"
-            >
-              <FaDollarSign className="text-lg" /> Ghi chi phí
-            </Link>
           </div>
         </div>
 

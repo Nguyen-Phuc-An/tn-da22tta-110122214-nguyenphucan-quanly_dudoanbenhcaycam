@@ -488,7 +488,7 @@ const LogsPage = () => {
               </div>
             ) : (
               <div className="bg-white rounded-lg shadow p-6 text-center text-gray-600 sticky top-6">
-                Chọn một nhật ký để xem chi tiết
+                👈 Chọn một nhật ký để xem chi tiết
               </div>
             )}
           </div>

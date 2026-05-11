@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
@@ -29,6 +29,9 @@ import PredictPage from './pages/User/PredictPage';
 import UserExpensesPage from './pages/User/ExpensesPage';
 import StatisticsPage from './pages/User/StatisticsPage';
 import ProfilePage from './pages/User/ProfilePage';
+import GuidePage from './pages/User/GuidePage';
+import PrivacyPage from './pages/User/PrivacyPage';
+import DiseaseLibraryPage from './pages/User/DiseaseLibraryPage';
 import authService from './services/authService';
 
 const RootRedirect = () => {
@@ -38,6 +41,16 @@ const RootRedirect = () => {
 
   const user = authService.getCurrentUser();
   return <Navigate to={user?.vai_tro === 'admin' ? '/admin' : '/user'} replace />;
+};
+
+const ScrollToTop = () => {
+  const location = useLocation();
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [location.pathname, location.search]);
+
+  return null;
 };
 
 function App() {
@@ -52,6 +65,7 @@ function App() {
   return (
     <>
       <BrowserRouter>
+        <ScrollToTop />
         <Routes>
           {/* Auth Routes */}
           <Route path="/login" element={<LoginPage />} />
@@ -142,6 +156,30 @@ function App() {
             element={
               <PrivateRoute>
                 <ProfilePage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/user/guide"
+            element={
+              <PrivateRoute>
+                <GuidePage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/user/privacy"
+            element={
+              <PrivateRoute>
+                <PrivacyPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/user/disease-library"
+            element={
+              <PrivateRoute>
+                <DiseaseLibraryPage />
               </PrivateRoute>
             }
           />

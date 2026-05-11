@@ -2,6 +2,7 @@ const express = require('express');
 const {
   getAllDiseases,
   getDiseaseById,
+  getDiseaseLibrary,
   getDiseaseByEnName,
   createDisease,
   updateDisease,
@@ -14,6 +15,9 @@ const router = express.Router();
 
 // GET tất cả bệnh (không cần authentication)
 router.get('/', getAllDiseases);
+
+// GET thư viện bệnh + ảnh mẫu gốc (không cần authentication)
+router.get('/library', getDiseaseLibrary);
 
 // GET bệnh theo tiếng Anh (không cần authentication)
 router.get('/en/:en_name', getDiseaseByEnName);

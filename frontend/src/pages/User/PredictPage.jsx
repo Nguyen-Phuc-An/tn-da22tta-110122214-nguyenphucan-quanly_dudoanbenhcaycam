@@ -235,7 +235,7 @@ const PredictPage = () => {
                       <FaEye className="text-gray-500" /> Grad-CAM
                     </p>
                     <p className="text-sm text-gray-600">
-                      Chưa có ảnh Grad-CAM từ ML API. Hãy kiểm tra lại dịch vụ ML đã được khởi động với bản cập nhật mới.
+                      Hãy dự đoán bệnh để xem Grad-CAM.
                     </p>
                   </div>
                 )}
@@ -453,7 +453,7 @@ const PredictPage = () => {
                   </div>
                 ) : (
                   <div className="bg-white rounded-xl shadow-md p-6 text-center text-gray-600 sticky top-6">
-                    Chọn một dự đoán để xem chi tiết
+                    👈 Chọn một dự đoán để xem chi tiết
                   </div>
                 )}
               </div>

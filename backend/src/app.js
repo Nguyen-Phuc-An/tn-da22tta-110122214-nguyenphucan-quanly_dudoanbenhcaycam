@@ -79,6 +79,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Serve static files (cho uploads)
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+app.use('/disease-dataset', express.static(path.join(__dirname, '../../ml/organized_dataset')));
 
 // Routes
 app.get('/', (req, res) => {

@@ -28,7 +28,7 @@ const UserHeader = () => {
         {/* Logo */}
         <Link to="/user" className="flex items-center gap-2">
           <div className="text-2xl font-bold text-green-600"><FaSeedling /></div>
-          <div className="font-bold text-xl text-gray-900">QuanLyVuon</div>
+          <div className="font-bold text-xl text-gray-900">MAP-Citrus</div>
         </Link>
 
         {/* Menu */}

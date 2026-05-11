@@ -336,7 +336,7 @@ const ExpensesPage = () => {
             }}
             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center gap-2"
           >
-            <FaPlus /> Ghi Nhận Chi Phí
+            <FaPlus /> Thêm Chi Phí Mới
           </button>
         </div>
 
