@@ -106,7 +106,7 @@ const AdminLayout = ({ children }) => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <header className="bg-white shadow-sm p-6 flex justify-between items-center">
+        {/* <header className="bg-white shadow-sm p-6 flex justify-between items-center">
           <h1 className="text-2xl font-bold text-gray-900">Bảng Điều Khiển Admin</h1>
           <div className="flex items-center gap-4">
             <div className="text-right">
@@ -117,7 +117,7 @@ const AdminLayout = ({ children }) => {
               {user?.ho_ten?.[0] || 'A'}
             </div>
           </div>
-        </header>
+        </header> */}
 
         {/* Content */}
         <main className="admin-border-scope flex-1 overflow-auto p-6">

@@ -173,6 +173,23 @@ const ExpensesPage = () => {
     setSelectedExpense(expense);
   };
 
+  const formatCurrency = (value) => Number(value || 0).toLocaleString('vi-VN');
+
+  const formatDate = (dateValue) => {
+    if (!dateValue) return 'N/A';
+    return new Date(dateValue).toLocaleDateString('vi-VN');
+  };
+
+  const getExpenseTypeColor = (type) => {
+    const value = String(type || '').toLowerCase();
+    if (value.includes('phân') || value.includes('fertil')) return 'bg-emerald-100 text-emerald-700';
+    if (value.includes('thuốc') || value.includes('pesti')) return 'bg-rose-100 text-rose-700';
+    if (value.includes('lao động') || value.includes('nhân công')) return 'bg-amber-100 text-amber-700';
+    return 'bg-slate-100 text-slate-700';
+  };
+
+  const nonAdminUsers = users.filter((user) => String(user.vai_tro || user.role || '').toLowerCase() !== 'admin');
+
   // Render SEASON LIST view
   const renderSeasonListView = () => (
     <div>
@@ -191,12 +208,15 @@ const ExpensesPage = () => {
               <div className="flex justify-between items-start">
                 <div>
                   <h3 className="font-bold text-lg">{season.ten_mua_vu}</h3>
-                  <p className="text-gray-600 text-sm">Năm: {season.nam}</p>
                 </div>
-                <FaChevronRight className="text-gray-400 mt-1" />
+                <p className="text-gray-600 text-sm">Năm: {season.nam}</p>
               </div>
-              <div className="mt-3 pt-3 border-t">
-                <span className={`text-xs px-2 py-1 rounded-full font-semibold ${
+              <div className="mt-3 pt-3 border-t flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm text-gray-600">Tổng chi phí:</p>
+                  <p className="text-lg font-bold text-blue-600">{total.toLocaleString('vi-VN')} đ</p>
+                </div>
+                <span className={`text-xs px-2 py-1 rounded-full font-semibold whitespace-nowrap ${
                   season.trang_thai === 'Đang diễn ra'
                     ? 'bg-green-100 text-green-700'
                     : season.trang_thai === 'Sắp diễn ra'
@@ -205,8 +225,6 @@ const ExpensesPage = () => {
                 }`}>
                   {season.trang_thai}
                 </span>
-                <p className="text-sm text-gray-600 mt-2">Tổng chi phí:</p>
-                <p className="text-lg font-bold text-blue-600">{total.toLocaleString('vi-VN')} đ</p>
               </div>
             </div>
           );
@@ -225,9 +243,7 @@ const ExpensesPage = () => {
         <h2 className="text-2xl font-bold">Danh sách Người dùng - {selectedSeason?.ten_mua_vu} ({selectedSeason?.nam})</h2>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {users
-          .filter((user) => user.vai_tro !== 'Admin' && user.role !== 'admin') // Exclude admin users
-          .map((user) => {
+        {nonAdminUsers.map((user) => {
           const total = getUserTotalForSeason(user._id);
           const userGardens = gardens.filter(
             (g) => g.user_id?._id === user._id || g.user_id === user._id
@@ -314,117 +330,155 @@ const ExpensesPage = () => {
   const renderExpensesView = () => {
     const expensesList = getExpensesForGarden();
     const gardenName = gardens.find(g => g._id === selectedGarden)?.ten_vuon;
+    const totalAmount = expensesList.reduce((sum, expense) => sum + (expense.so_tien || 0), 0);
 
     return (
       <div>
         <div className="flex items-center gap-3 mb-6">
-          <button onClick={handleBackFromExpenses} className="p-2 hover:bg-gray-200 rounded-lg">
+          <button onClick={handleBackFromExpenses} className="p-2 hover:bg-gray-200 rounded-lg transition">
             <FaArrowLeft size={20} />
           </button>
-          <h2 className="text-2xl font-bold">Chi Phí - {gardenName}</h2>
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">Chi Phí - {gardenName}</h2>
+            <p className="text-sm text-gray-500">Xem danh sách khoản chi và chi tiết từng mục hàng.</p>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+            <div className="text-sm text-gray-500">Số khoản chi</div>
+            <div className="mt-2 text-2xl font-bold text-gray-900">{expensesList.length}</div>
+          </div>
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+            <div className="text-sm text-gray-500">Tổng chi phí</div>
+            <div className="mt-2 text-2xl font-bold text-emerald-600">{formatCurrency(totalAmount)} đ</div>
+          </div>
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+            <div className="text-sm text-gray-500">Chi phí đang xem</div>
+            <div className="mt-2 text-2xl font-bold text-gray-900">{selectedExpense ? selectedExpense.loai_chi_phi : 'Chưa chọn'}</div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 items-start">
           {/* LEFT: Expense List */}
-          <div className="overflow-x-auto">
-            <h3 className="text-lg font-bold mb-3">Danh sách Chi Phí</h3>
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-gray-100">
-                  <th className="p-3 text-left font-semibold border-b">Loại Chi Phí</th>
-                  <th className="p-3 text-right font-semibold border-b">Tổng Tiền</th>
-                  <th className="p-3 text-center font-semibold border-b">Ngày</th>
-                </tr>
-              </thead>
-              <tbody>
-                {expensesList.length > 0 ? (
-                  expensesList.map((expense) => (
-                    <tr
+          <div className="lg:col-span-3 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Danh sách chi phí</h3>
+                <p className="text-sm text-gray-500">Chọn một dòng để xem chi tiết mặt hàng ở khung bên phải.</p>
+              </div>
+              <span className="text-sm text-gray-500">{expensesList.length} bản ghi</span>
+            </div>
+
+            <div className="divide-y divide-gray-100">
+              {expensesList.length > 0 ? (
+                expensesList.map((expense) => {
+                  const isSelected = selectedExpense?._id === expense._id;
+                  return (
+                    <button
                       key={expense._id}
+                      type="button"
                       onClick={() => handleSelectExpense(expense)}
-                      className={`border-b cursor-pointer transition-all ${
-                        selectedExpense?._id === expense._id
-                          ? 'bg-blue-100 hover:bg-blue-200'
-                          : 'hover:bg-gray-50'
+                      className={`w-full text-left p-4 transition-all ${
+                        isSelected ? 'bg-emerald-50' : 'hover:bg-gray-50'
                       }`}
                     >
-                      <td className="p-3">{expense.loai_chi_phi}</td>
-                      <td className="p-3 text-right font-semibold">{(expense.so_tien || 0).toLocaleString('vi-VN')} đ</td>
-                      <td className="p-3 text-center text-sm">
-                        {new Date(expense.ngay).toLocaleDateString('vi-VN')}
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="3" className="p-6 text-center text-gray-500">
-                      Không có chi phí nào
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap mb-2">
+                            <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${getExpenseTypeColor(expense.loai_chi_phi)}`}>
+                              {expense.loai_chi_phi}
+                            </span>
+                            <span className="text-xs text-gray-500">{formatDate(expense.ngay)}</span>
+                          </div>
+                          <div className="text-sm text-gray-600 truncate">
+                            {expense.garden_id?.ten_vuon || 'Không xác định'}
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="text-lg font-bold text-gray-900">{formatCurrency(expense.so_tien)} đ</div>
+                          <div className="text-xs text-gray-500">{expense.items?.length || 0} mặt hàng</div>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })
+              ) : (
+                <div className="p-8 text-center text-gray-500">
+                  Không có chi phí nào cho vườn này.
+                </div>
+              )}
+            </div>
           </div>
 
           {/* RIGHT: Item Details */}
-          <div className="lg:col-span-1 flex flex-col">
+          <div className="lg:col-span-2 flex flex-col">
             {selectedExpense ? (
-              <div className="bg-white rounded-lg shadow overflow-hidden flex flex-col h-full">
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full sticky top-4">
                 {/* Header */}
-                <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-4 flex justify-between items-start">
-                  <h3 className="text-lg font-bold">Danh sách mặt hàng ({selectedExpense.items?.length || 0})</h3>
+                <div className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white p-3.5 flex justify-between items-start gap-2">
+                  <div>
+                    <div className="text-[11px] uppercase tracking-wider text-emerald-50/90 mb-0.5">Chi tiết chi phí</div>
+                    <h3 className="text-base font-bold leading-tight">{selectedExpense.loai_chi_phi}</h3>
+                    <p className="text-[11px] text-emerald-50/90 mt-0.5">{formatDate(selectedExpense.ngay)} · {selectedExpense.items?.length || 0} mặt hàng</p>
+                  </div>
                   <button
                     onClick={() => setSelectedExpense(null)}
-                    className="text-white hover:text-gray-200 text-2xl leading-none"
+                    className="text-white hover:text-emerald-100 text-2xl leading-none"
                   >
                     ×
                   </button>
                 </div>
 
                 {/* Items List with Scrolling */}
-                <div className="flex-1 overflow-y-auto p-4">
+                <div className="flex-1 overflow-y-auto p-3">
                   {selectedExpense.items && selectedExpense.items.length > 0 ? (
-                    <div className="space-y-3">
+                    <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1">
                       {selectedExpense.items.map((item, idx) => (
-                        <div key={idx} className="border border-gray-200 rounded-lg p-3 hover:bg-gray-50 transition">
-                          <div className="font-semibold text-gray-900 mb-2">{item.ten_hang || item.ten_mat_hang}</div>
-                          <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
-                            <div>
-                              <span className="font-medium">Số lượng:</span>
-                              <p className="text-gray-900">{item.so_luong} {item.don_vi || ''}</p>
+                        <div key={idx} className="rounded-xl border border-gray-200 p-2.5 hover:border-emerald-300 hover:bg-emerald-50/50 transition">
+                          <div className="flex items-start justify-between gap-2 mb-1.5">
+                            <div className="font-semibold text-gray-900 text-sm leading-tight">{item.ten_hang || item.ten_mat_hang}</div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            <div className="rounded-lg bg-gray-50 p-2">
+                              <div className="text-xs text-gray-500">Số lượng</div>
+                              <div className="font-semibold text-gray-900 mt-0.5 text-sm">{item.so_luong} {item.don_vi || ''}</div>
                             </div>
-                            <div>
-                              <span className="font-medium">Giá tiền:</span>
-                              <p className="text-gray-900">{(item.don_gia || item.gia_tien || 0).toLocaleString('vi-VN')} đ</p>
+                            <div className="rounded-lg bg-gray-50 p-2">
+                              <div className="text-xs text-gray-500">Đơn giá</div>
+                              <div className="font-semibold text-gray-900 mt-0.5 text-sm">{formatCurrency(item.don_gia || item.gia_tien || 0)} đ</div>
                             </div>
                           </div>
-                          <div className="mt-2 pt-2 border-t border-gray-200">
-                            <span className="text-xs font-medium text-gray-600">Tổng tiền:</span>
-                            <p className="text-lg font-bold text-green-600">
-                              {((item.tong_tien) || (item.so_luong * (item.don_gia || item.gia_tien || 0))).toLocaleString('vi-VN')} đ
+                          <div className="mt-1.5 pt-1.5 border-t border-gray-100 flex items-center justify-between">
+                            <span className="text-xs text-gray-500">Tổng tiền</span>
+                            <p className="text-base font-bold text-emerald-600">
+                              {formatCurrency(item.tong_tien || (item.so_luong * (item.don_gia || item.gia_tien || 0)))} đ
                             </p>
                           </div>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <div className="text-center py-4 text-gray-500">Không có mặt hàng</div>
+                    <div className="text-center py-5 text-gray-500 text-sm">Không có mặt hàng</div>
                   )}
                 </div>
 
                 {/* Total Amount */}
-                <div className="border-t bg-gray-50 p-4">
-                  <div className="bg-green-100 border-2 border-green-500 rounded-lg p-3">
-                    <div className="text-xs text-gray-600 mb-1">Tổng chi phí</div>
-                    <div className="text-2xl font-bold text-green-600">
-                      {(selectedExpense.so_tien || 0).toLocaleString('vi-VN')} đ
+                <div className="border-t border-gray-100 bg-gray-50 p-3">
+                  <div className="flex justify-between items-start rounded-xl bg-emerald-50 border border-emerald-200 p-3">
+                    <div className="text-x tracking-wider text-700 mb-1">Tổng chi phí</div>
+                    <div className="text-xl font-bold text-emerald-700 leading-tight">
+                      {formatCurrency(selectedExpense.so_tien)} đ
                     </div>
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center h-full">
-                <p className="text-gray-500 text-center">Chọn một chi phí để xem chi tiết mặt hàng</p>
+              <div className="bg-white rounded-2xl border border-dashed border-gray-300 flex items-center justify-center min-h-[420px] shadow-sm">
+                <div className="text-center p-8 max-w-sm">
+                  <p className="text-gray-700 font-medium">Chọn một chi phí để xem chi tiết mặt hàng</p>
+                  <p className="text-sm text-gray-500 mt-2">Thông tin chi tiết sẽ hiển thị ở khung bên phải theo đúng phong cách các trang admin khác.</p>
+                </div>
               </div>
             )}
           </div>

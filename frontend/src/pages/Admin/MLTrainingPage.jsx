@@ -219,12 +219,12 @@ const MLTrainingPage = () => {
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-gray-900">⚙️ Đào Tạo ML Model</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Đào Tạo ML Model</h1>
           <div className="flex items-center gap-3">
             <button
               onClick={handleToggleMaintenance}
               disabled={maintenanceLoading}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-white transition disabled:bg-gray-400 ${maintenanceMode ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-900 hover:bg-gray-800'}`}
+              className={`flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-900 disabled:bg-gray-400 ${maintenanceMode ? 'bg-red-600 hover:bg-red-700' : 'bg-green-700 hover:bg-green-800'}`}
             >
               {maintenanceMode ? <FaUnlock /> : <FaLock />}
               {maintenanceMode ? 'Mở Khóa Hệ Thống' : 'Bật Bảo Trì'}
@@ -232,7 +232,7 @@ const MLTrainingPage = () => {
             <button
               onClick={handleRetrain}
               disabled={retraining || loading}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:bg-gray-400"
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400"
             >
               <FaCog className={retraining ? 'animate-spin' : ''} />
               {retraining ? 'Đang Đào Tạo...' : 'Đào Tạo Lại'}
@@ -240,7 +240,7 @@ const MLTrainingPage = () => {
           </div>
         </div>
 
-        <div className={`rounded-2xl border p-4 flex items-center justify-between gap-4 ${maintenanceMode ? 'border-gray-900 bg-gray-50 text-gray-900' : 'border-gray-200 bg-gray-50 text-gray-900'}`}>
+        <div className={`rounded-2xl border p-4 flex items-center justify-between gap-4 ${maintenanceMode ? 'border-red-900 bg-red-50 text-red-900' : 'border-green-200 bg-green-50 text-green-900'}`}>
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.2em] mb-1">Trạng thái hệ thống</p>
             <p className="text-lg font-bold">
@@ -437,8 +437,8 @@ const MLTrainingPage = () => {
                     <p className="text-sm font-medium text-gray-500 mt-1">{disease}</p>
                     <p className="text-xs text-gray-500 mt-1">
                       {data.source === 'original'
-                        ? '🎓 Bệnh gốc (organized_dataset)'
-                        : '🆕 Bệnh mới'}
+                        ? 'Bệnh gốc (organized_dataset)'
+                        : 'Bệnh mới'}
                     </p>
                   </div>
 

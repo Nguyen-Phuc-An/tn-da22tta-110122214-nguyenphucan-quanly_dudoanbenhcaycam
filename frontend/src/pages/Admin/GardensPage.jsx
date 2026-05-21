@@ -317,7 +317,7 @@ const GardensPage = () => {
                   <tr key={garden._id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-gray-900 font-medium">
-                        <FaLeaf className="inline mr-2" /> {garden.ten_vuon}
+                        {garden.ten_vuon}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-gray-600">
