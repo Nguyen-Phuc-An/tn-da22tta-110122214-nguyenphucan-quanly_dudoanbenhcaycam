@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { FaChartBar, FaUsers, FaLeaf, FaCalendar, FaDollarSign, FaClipboard, FaCheckCircle, FaVirus, FaCamera, FaComments, FaFlask, FaPills, FaCog, FaKey, FaSignOutAlt } from 'react-icons/fa';
+import { FaChartBar, FaUsers, FaLeaf, FaCalendar, FaDollarSign, FaClipboard, FaCheckCircle, FaVirus, FaCamera, FaFlask, FaPills, FaCog, FaKey, FaSignOutAlt, FaBell } from 'react-icons/fa';
 import authService from '../../services/authService';
 
 const AdminLayout = ({ children }) => {
@@ -17,7 +17,7 @@ const AdminLayout = ({ children }) => {
   const isActive = (path) => location.pathname === path;
 
   const menuItems = [
-    { label: '📊 Bảng Điều Khiển', path: '/admin', icon: FaChartBar },
+    { label: '📊 Tổng Hợp', path: '/admin', icon: FaChartBar },
     { label: '👥 Người Dùng', path: '/admin/users', icon: FaUsers },
     { label: '🌱 Vườn', path: '/admin/gardens', icon: FaLeaf },
     { label: '📅 Mùa Vụ', path: '/admin/seasons', icon: FaCalendar },
@@ -26,11 +26,9 @@ const AdminLayout = ({ children }) => {
     { label: '✅ Công Việc', path: '/admin/tasks', icon: FaCheckCircle },
     { label: '🦠 Bệnh', path: '/admin/diseases', icon: FaVirus },
     { label: '📸 Dự Đoán', path: '/admin/predictions', icon: FaCamera },
-    { label: '💬 Chat AI', path: '/admin/chat', icon: FaComments },
-    // ===== CẬP NHẬT: Thêm Fertilizer & Pesticide menu =====
+    { label: '🔔 Thông Báo', path: '/admin/notifications', icon: FaBell },
     { label: '🌾 Phân Bón', path: '/admin/fertilizers', icon: FaFlask },
     { label: '💊 Thuốc', path: '/admin/pesticides', icon: FaPills },
-    // ===== CẬP NHẬT: Thêm ML Training menu =====
     { label: '⚙️ Đào Tạo ML', path: '/admin/ml-training', icon: FaCog },
   ];
 
@@ -122,7 +120,14 @@ const AdminLayout = ({ children }) => {
         </header>
 
         {/* Content */}
-        <main className="flex-1 overflow-auto p-6">{children}</main>
+        <main className="admin-border-scope flex-1 overflow-auto p-6">
+          <style>{`
+            .admin-border-scope :where([class*="border"]) {
+              border-color: rgb(17 24 39 / var(--tw-bg-opacity, 1)) !important;
+            }
+          `}</style>
+          {children}
+        </main>
       </div>
     </div>
   );

@@ -53,7 +53,7 @@ Load model.h5 và trả kết quả tiếng Việt
 import os
 import json
 import numpy as np
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 import tensorflow as tf
 import cv2
 from uuid import uuid4
@@ -117,12 +117,60 @@ def find_last_conv_layer(model):
 def preprocess_image(image_path):
     """Tiền xử lý ảnh giống như train"""
     
-    img = Image.open(image_path).convert("RGB")
+    try:
+        img = Image.open(image_path).convert("RGB")
+    except UnidentifiedImageError as exc:
+        raise ValueError("Định dạng ảnh chưa được hỗ trợ. Vui lòng dùng JPG, PNG hoặc WEBP.") from exc
+
+    img_array = np.array(img, dtype=np.uint8)
+    img_array = crop_to_leaf_region(img_array)
+
+    img = Image.fromarray(img_array).convert("RGB")
     img = img.resize((IMG_SIZE, IMG_SIZE))
     img_array = np.array(img, dtype=np.float32) / 255.0
     img_array = np.expand_dims(img_array, axis=0)  # Thêm batch dimension
     
     return img_array
+
+
+def crop_to_leaf_region(image_array):
+    """Cắt vùng lá ước lượng để giảm ảnh hưởng của nền và viền ảnh."""
+
+    if image_array is None or image_array.size == 0:
+        return image_array
+
+    try:
+        hsv = cv2.cvtColor(image_array, cv2.COLOR_RGB2HSV)
+        lower_green = np.array([20, 25, 20], dtype=np.uint8)
+        upper_green = np.array([95, 255, 255], dtype=np.uint8)
+        mask = cv2.inRange(hsv, lower_green, upper_green)
+
+        kernel = np.ones((5, 5), np.uint8)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not contours:
+            return image_array
+
+        largest = max(contours, key=cv2.contourArea)
+        if cv2.contourArea(largest) < image_array.shape[0] * image_array.shape[1] * 0.03:
+            return image_array
+
+        x, y, w, h = cv2.boundingRect(largest)
+        pad = int(max(w, h) * 0.15)
+        x1 = max(x - pad, 0)
+        y1 = max(y - pad, 0)
+        x2 = min(x + w + pad, image_array.shape[1])
+        y2 = min(y + h + pad, image_array.shape[0])
+
+        cropped = image_array[y1:y2, x1:x2]
+        if cropped.size == 0:
+            return image_array
+
+        return cropped
+    except Exception:
+        return image_array
 
 
 def generate_gradcam(image_path, model, class_index=None):

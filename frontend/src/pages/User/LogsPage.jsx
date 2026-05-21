@@ -20,7 +20,7 @@ const LogsPage = () => {
   const [selectedLog, setSelectedLog] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
-  const { register, handleSubmit, reset, watch } = useForm();
+  const { register, handleSubmit, reset, watch, setValue } = useForm();
 
   const selectedGarden = watch('garden_id');
 
@@ -36,21 +36,25 @@ const LogsPage = () => {
     }
   }, [location.pathname]);
 
-  // Auto-set season when garden is selected
+  // Auto-set season when garden is selected in create mode
   useEffect(() => {
-    if (selectedGarden && seasons.length > 0) {
-      const gardenSeasons = seasons.filter(
-        (s) => s.garden_id?._id === selectedGarden || s.garden_id === selectedGarden
-      );
-      if (gardenSeasons.length > 0) {
-        // Set to the first (nearest) season
-        reset((formValues) => ({
-          ...formValues,
-          season_id: gardenSeasons[0]._id,
-        }));
-      }
+    if (editingId) {
+      return;
     }
-  }, [selectedGarden, seasons, reset]);
+
+    if (!selectedGarden) {
+      setValue('season_id', '');
+      return;
+    }
+
+    const currentGarden = gardens.find((garden) => garden._id === selectedGarden);
+    const currentSeasonId = currentGarden?.season_id?._id || currentGarden?.season_id || '';
+
+    setValue('season_id', currentSeasonId, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  }, [selectedGarden, gardens, editingId, setValue]);
 
   useEffect(() => {
     fetchData();
@@ -167,9 +171,7 @@ const LogsPage = () => {
     return result;
   }, [logs, searchTerm]);
 
-  const filteredSeasons = selectedGarden
-    ? seasons.filter((s) => s.garden_id?._id === selectedGarden || s.garden_id === selectedGarden)
-    : [];
+  const filteredSeasons = seasons;
 
   // Pagination logic
   const totalPages = Math.ceil(filteredLogs.length / ITEMS_PER_PAGE);

@@ -1,16 +1,34 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   FaHome, FaCamera, FaFlask, FaLeaf, FaChartBar, FaMicroscope, FaDollarSign,
-  FaVirus, FaBolt, FaRedo, FaBrain, FaExclamationTriangle, FaImage, FaClock,
+  FaVirus, FaBolt, FaRedo, FaBrain, FaExclamationTriangle, FaImage, FaClock, FaBell,
   FaClipboardList, FaTrophy, FaList, FaCircle, FaFileAlt, FaEye, FaHourglassHalf
 } from 'react-icons/fa';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 import UserLayout from '../../components/User/UserLayout';
 import apiClient from '../../services/apiClient';
+import authService from '../../services/authService';
+import notificationService from '../../services/notificationService';
 import toast from 'react-hot-toast';
 
 const HomePage = () => {
   const navigate = useNavigate();
+  const currentUser = authService.getCurrentUser();
   const fileInputRef = React.useRef(null);
   const [stats, setStats] = useState({
     gardens: 0,
@@ -23,7 +41,10 @@ const HomePage = () => {
     diseases: [],
     seasons: [],
   });
+  const [allPredictions, setAllPredictions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [notifications, setNotifications] = useState([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(true);
 
   // Prediction state
   const [image, setImage] = useState(null);
@@ -32,12 +53,27 @@ const HomePage = () => {
   const [selectedGarden, setSelectedGarden] = useState('');
   const [predicting, setPredicting] = useState(false);
   const [predictionResult, setPredictionResult] = useState(null);
-  const [showAdvice, setShowAdvice] = useState(false);
+  const [selectedAdvice, setSelectedAdvice] = useState('');
+  const [selectedAdviceLoading, setSelectedAdviceLoading] = useState(false);
+  const [selectedTopDisease, setSelectedTopDisease] = useState(null);
 
   useEffect(() => {
     fetchStats();
     fetchGardens();
+    fetchNotifications();
   }, []);
+
+  const fetchNotifications = async () => {
+    try {
+      setNotificationsLoading(true);
+      const response = await notificationService.getActiveNotifications();
+      setNotifications(response.data || []);
+    } catch (error) {
+      console.error('❌ Lỗi tải thông báo:', error);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  };
 
   const fetchStats = async () => {
     try {
@@ -54,9 +90,27 @@ const HomePage = () => {
       const logs = logsRes.data.data || [];
       const seasons = seasonsRes.data.data || [];
 
+      const currentUserId = currentUser?._id ? String(currentUser._id) : '';
+      const userPredictions = currentUserId
+        ? predictions.filter((prediction) => String(prediction.user_id || '') === currentUserId)
+        : predictions;
+
+      const userGardens = currentUserId
+        ? (gardensRes.data.data || []).filter((garden) => String(garden.user_id || '') === currentUserId)
+        : (gardensRes.data.data || []);
+
+      const userLogs = currentUserId
+        ? logs.filter((log) => String(log.garden_id?.user_id || log.user_id || '') === currentUserId)
+        : logs;
+
+      const userGardenIds = new Set(userGardens.map((garden) => String(garden._id)));
+      const userExpenses = currentUserId
+        ? (expensesRes.data.data || []).filter((expense) => userGardenIds.has(String(expense.garden_id?._id || expense.garden_id || '')))
+        : (expensesRes.data.data || []);
+
       // Calculate diseases
       const diseaseCount = {};
-      predictions.forEach(p => {
+      userPredictions.forEach(p => {
         if (p.ket_qua_benh) {
           diseaseCount[p.ket_qua_benh] = (diseaseCount[p.ket_qua_benh] || 0) + 1;
         }
@@ -67,14 +121,16 @@ const HomePage = () => {
         .sort((a, b) => b.count - a.count);
 
       setStats({
-        gardens: gardensRes.data.data?.length || 0,
-        predictions: predictions.length,
-        expenses: expensesRes.data.data?.reduce((sum, e) => sum + (e.so_tien || 0), 0) || 0,
+        gardens: userGardens.length,
+        predictions: userPredictions.length,
+        expenses: userExpenses.reduce((sum, e) => sum + (e.so_tien || 0), 0),
       });
 
+      setAllPredictions(userPredictions);
+
       setRecentData({
-        logs: logs.slice(0, 5),
-        predictions: predictions.slice(0, 5),
+        logs: userLogs.slice(0, 5),
+        predictions: userPredictions.slice(0, 5),
         diseases: diseases.slice(0, 5),
         seasons: seasons.slice(0, 3),
       });
@@ -132,6 +188,8 @@ const HomePage = () => {
 
       console.log('✓ Prediction result:', res.data.data);
       setPredictionResult(res.data.data);
+      setSelectedAdvice('');
+      setSelectedTopDisease(null);
       toast.success('Dự đoán thành công');
     } catch (error) {
       console.error('❌ Lỗi dự đoán:', error);
@@ -145,6 +203,70 @@ const HomePage = () => {
     if (!gradCamPath) return '';
     if (gradCamPath.startsWith('http')) return gradCamPath;
     return `http://localhost:5000${gradCamPath}`;
+  };
+
+  const chartData = useMemo(() => {
+    const byDayMap = new Map();
+    const byDiseaseMap = new Map();
+    const byGardenMap = new Map();
+    const confidenceBuckets = [
+      { name: '0-39%', value: 0 },
+      { name: '40-59%', value: 0 },
+      { name: '60-79%', value: 0 },
+      { name: '80-100%', value: 0 },
+    ];
+
+    allPredictions.forEach((prediction) => {
+      const dayKey = prediction.ngay_du_doan ? new Date(prediction.ngay_du_doan).toLocaleDateString('vi-VN') : 'N/A';
+      byDayMap.set(dayKey, (byDayMap.get(dayKey) || 0) + 1);
+
+      const diseaseKey = prediction.ket_qua_benh || 'Không xác định';
+      byDiseaseMap.set(diseaseKey, (byDiseaseMap.get(diseaseKey) || 0) + 1);
+
+      const gardenKey = prediction.garden_id?.ten_vuon || 'Chưa gắn vườn';
+      byGardenMap.set(gardenKey, (byGardenMap.get(gardenKey) || 0) + 1);
+
+      const confidence = Number(prediction.do_tin_cay || 0) * 100;
+      if (confidence < 40) confidenceBuckets[0].value += 1;
+      else if (confidence < 60) confidenceBuckets[1].value += 1;
+      else if (confidence < 80) confidenceBuckets[2].value += 1;
+      else confidenceBuckets[3].value += 1;
+    });
+
+    return {
+      byDay: Array.from(byDayMap.entries()).map(([date, count]) => ({ date, count })),
+      byDisease: Array.from(byDiseaseMap.entries())
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 6),
+      byGarden: Array.from(byGardenMap.entries())
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 6),
+      confidenceBuckets,
+    };
+  }, [allPredictions]);
+
+  const chartColors = ['#ef4444', '#f97316', '#eab308', '#22c55e'];
+
+  const handleSelectTopDisease = async (pred) => {
+    try {
+      setSelectedTopDisease(pred);
+      setSelectedAdviceLoading(true);
+      setSelectedAdvice('');
+
+      const response = await apiClient.post('/predictions/advice', {
+        disease_en: pred.ten_benh_en,
+        confidence: pred.confidence,
+      });
+
+      setSelectedAdvice(response.data?.data?.advice || '');
+    } catch (error) {
+      console.error('❌ Lỗi lấy tư vấn AI:', error);
+      toast.error(error.response?.data?.message || 'Không thể tạo tư vấn AI');
+    } finally {
+      setSelectedAdviceLoading(false);
+    }
   };
 
   return (
@@ -293,6 +415,19 @@ const HomePage = () => {
                     Hãy chụp lá bệnh rõ nét, đủ sáng và lấy gần vùng tổn thương để kết quả dự đoán chính xác hơn.
                   </p>
                 </div>
+
+                {getGradCamUrl(predictionResult?.grad_cam_path || predictionResult?.grad_cam?.overlay_path) && (
+                      <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+                        <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                          <FaEye className="text-red-600" /> Grad-CAM - Vùng ảnh quan trọng
+                        </h4>
+                        <img
+                          src={getGradCamUrl(predictionResult?.grad_cam_path || predictionResult?.grad_cam?.overlay_path)}
+                          alt="Grad-CAM overlay"
+                          className="w-full rounded-lg border border-gray-200 object-contain bg-gray-50"
+                        />
+                      </div>
+                    )}
               </div>
 
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -323,9 +458,21 @@ const HomePage = () => {
                         <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
                           <FaList className="text-blue-600" /> Top 3 bệnh khả năng
                         </h4>
+                        <p className="mb-3 text-sm text-gray-600">
+                          Chọn 1 bệnh bên dưới để AI tư vấn đúng theo kết quả bạn muốn xem.
+                        </p>
                         <div className="space-y-2">
                           {predictionResult.top_3.map((pred, idx) => (
-                            <div key={idx} className="bg-gray-50 rounded-lg p-3 flex justify-between items-center hover:bg-gray-100 transition border border-gray-200">
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => handleSelectTopDisease(pred)}
+                              className={`w-full rounded-lg p-3 flex justify-between items-center transition text-left ${
+                                selectedTopDisease?.ten_benh_en === pred.ten_benh_en
+                                  ? 'bg-green-100 border border-green-300'
+                                  : 'bg-gray-50 hover:bg-gray-100 border border-gray-200'
+                              }`}
+                            >
                               <div>
                                 <p className="font-semibold text-gray-900">#{idx + 1} {pred.ten_benh}</p>
                                 <p className="text-sm text-gray-600">{pred.ten_benh_en}</p>
@@ -335,31 +482,46 @@ const HomePage = () => {
                                   {Math.round(pred.confidence * 100)}%
                                 </p>
                               </div>
-                            </div>
+                            </button>
                           ))}
                         </div>
                       </div>
                     )}
 
-                    {predictionResult?.advice && (
-                      <div className="bg-blue-50 rounded-xl p-5 border border-blue-200">
+                    {(selectedAdviceLoading || selectedAdvice || selectedTopDisease) && (
+                      <div className={`rounded-xl p-5 border-l-4 ${selectedAdviceLoading ? 'bg-purple-100 border-purple-500' : 'bg-purple-50 border-purple-500'}`}>
                         <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
-                          <FaBrain className="text-blue-600" /> Tư vấn AI từ Gemini
+                          <FaBrain className="text-purple-600" /> Tư vấn AI từ Gemini
                         </h4>
-                        <p className="text-gray-800 leading-relaxed whitespace-pre-wrap">{predictionResult.advice}</p>
-                      </div>
-                    )}
-
-                    {getGradCamUrl(predictionResult.grad_cam_path || predictionResult.grad_cam?.overlay_path) && (
-                      <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-                        <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
-                          <FaEye className="text-red-600" /> Grad-CAM - Vùng ảnh quan trọng
-                        </h4>
-                        <img
-                          src={getGradCamUrl(predictionResult.grad_cam_path || predictionResult.grad_cam?.overlay_path)}
-                          alt="Grad-CAM overlay"
-                          className="w-full rounded-lg border border-gray-200 object-contain bg-gray-50"
-                        />
+                        {!selectedTopDisease ? (
+                          <p className="text-sm text-gray-600">Hãy chọn 1 trong 3 kết quả để xem tư vấn AI.</p>
+                        ) : selectedAdviceLoading ? (
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-200 text-purple-700">
+                                <FaHourglassHalf className="animate-spin" />
+                              </div>
+                              <div>
+                                <p className="text-sm font-semibold text-gray-800">Đang phân tích bệnh đã chọn...</p>
+                                <p className="text-xs text-gray-600">AI đang tạo tư vấn cho {selectedTopDisease.ten_benh}</p>
+                              </div>
+                            </div>
+                            <div className="space-y-2 rounded-lg bg-white/70 p-3 border border-purple-100">
+                              <div className="h-3 w-3/4 animate-pulse rounded-full bg-purple-200" />
+                              <div className="h-3 w-5/6 animate-pulse rounded-full bg-purple-200" />
+                              <div className="h-3 w-2/3 animate-pulse rounded-full bg-purple-200" />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <p className="text-sm font-semibold text-gray-800">
+                              Tư vấn cho: {selectedTopDisease.ten_benh}
+                            </p>
+                            <p className="text-sm text-gray-800 whitespace-pre-wrap">
+                              {selectedAdvice}
+                            </p>
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -369,7 +531,9 @@ const HomePage = () => {
                           setPredictionResult(null);
                           setImage(null);
                           setPreview(null);
-                          setShowAdvice(false);
+                          setSelectedAdvice('');
+                          setSelectedTopDisease(null);
+                          setSelectedAdviceLoading(false);
                           if (fileInputRef.current) {
                             fileInputRef.current.value = '';
                           }
@@ -378,16 +542,6 @@ const HomePage = () => {
                       >
                         <FaRedo /> Dự đoán lại
                       </button>
-                      {predictionResult?.advice && (
-                        <button
-                          onClick={() => {
-                            document.querySelector('.bg-blue-50')?.scrollIntoView({ behavior: 'smooth' });
-                          }}
-                          className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition font-semibold flex items-center justify-center gap-2"
-                        >
-                          <FaBrain /> Xem tư vấn AI
-                        </button>
-                      )}
                     </div>
                   </div>
                 ) : (
@@ -397,6 +551,99 @@ const HomePage = () => {
                     <p className="text-sm mt-2">Upload ảnh lá cây bên trái để bắt đầu</p>
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Charts */}
+        <div className="mb-8 space-y-6">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-6">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Tổng quan dự đoán theo ngày</h2>
+                  <p className="text-sm text-gray-500">Số lượt dự đoán gần đây của hệ thống</p>
+                </div>
+                <div className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">Live</div>
+              </div>
+              <div className="h-72 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartData.byDay}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="date" tick={{ fill: '#475569', fontSize: 12 }} />
+                    <YAxis tick={{ fill: '#475569', fontSize: 12 }} />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="count" stroke="#2563eb" strokeWidth={3} dot={{ r: 4 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-6">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Tỷ lệ confidence</h2>
+                  <p className="text-sm text-gray-500">Phân bố độ tin cậy của các dự đoán</p>
+                </div>
+                <div className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">Donut</div>
+              </div>
+              <div className="h-72 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={chartData.confidenceBuckets} dataKey="value" nameKey="name" innerRadius={55} outerRadius={95} paddingAngle={3}>
+                      {chartData.confidenceBuckets.map((entry, index) => (
+                        <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-6">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Phân bố bệnh phổ biến</h2>
+                  <p className="text-sm text-gray-500">Top bệnh được dự đoán nhiều nhất</p>
+                </div>
+                <div className="rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">Top 6</div>
+              </div>
+              <div className="h-72 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData.byDisease}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="name" tick={{ fill: '#475569', fontSize: 12 }} interval={0} angle={-15} textAnchor="end" height={60} />
+                    <YAxis tick={{ fill: '#475569', fontSize: 12 }} />
+                    <Tooltip />
+                    <Bar dataKey="value" fill="#16a34a" radius={[6, 6, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-6">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Hoạt động theo vườn</h2>
+                  <p className="text-sm text-gray-500">Số lần dự đoán của từng vườn</p>
+                </div>
+                <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">Top 6</div>
+              </div>
+              <div className="h-72 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData.byGarden}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="name" tick={{ fill: '#475569', fontSize: 12 }} interval={0} angle={-15} textAnchor="end" height={60} />
+                    <YAxis tick={{ fill: '#475569', fontSize: 12 }} />
+                    <Tooltip />
+                    <Bar dataKey="value" fill="#0f172a" radius={[6, 6, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
             </div>
           </div>

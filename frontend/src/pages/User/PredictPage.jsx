@@ -13,6 +13,9 @@ const PredictPage = () => {
   const [selectedGarden, setSelectedGarden] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
+  const [selectedAdvice, setSelectedAdvice] = useState('');
+  const [selectedAdviceLoading, setSelectedAdviceLoading] = useState(false);
+  const [selectedTopDisease, setSelectedTopDisease] = useState(null);
   const [predictions, setPredictions] = useState([]);
   const [selectedPrediction, setSelectedPrediction] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -81,6 +84,8 @@ const PredictPage = () => {
 
       console.log('✓ Prediction result:', res.data.data);
       setResult(res.data.data);
+      setSelectedAdvice('');
+      setSelectedTopDisease(null);
       toast.success('Dự đoán thành công');
       // Refresh predictions list
       fetchPredictions();
@@ -147,6 +152,26 @@ const PredictPage = () => {
   const handlePageChange = (page) => {
     setCurrentPage(page);
     setSelectedPrediction(null);
+  };
+
+  const handleSelectTopDisease = async (pred) => {
+    try {
+      setSelectedTopDisease(pred);
+      setSelectedAdviceLoading(true);
+      setSelectedAdvice('');
+
+      const response = await apiClient.post('/predictions/advice', {
+        disease_en: pred.ten_benh_en,
+        confidence: pred.confidence,
+      });
+
+      setSelectedAdvice(response.data?.data?.advice || '');
+    } catch (error) {
+      console.error('❌ Lỗi lấy tư vấn AI:', error);
+      toast.error(error.response?.data?.message || 'Không thể tạo tư vấn AI');
+    } finally {
+      setSelectedAdviceLoading(false);
+    }
   };
 
   return (
@@ -269,11 +294,18 @@ const PredictPage = () => {
                 {result.top_3 && (
                   <div>
                     <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2"><FaList className="text-blue-600" /> Top 3 bệnh khả năng</h4>
+                    <p className="mb-3 text-sm text-gray-600">Chọn 1 bệnh bên dưới để AI tư vấn đúng theo kết quả bạn muốn xem.</p>
                     <div className="space-y-2">
                       {result.top_3.map((pred, idx) => (
-                        <div
+                        <button
                           key={idx}
-                          className="bg-gray-100 rounded-lg p-3 flex justify-between items-center hover:bg-gray-150 transition"
+                          type="button"
+                          onClick={() => handleSelectTopDisease(pred)}
+                          className={`w-full rounded-lg p-3 flex justify-between items-center transition text-left ${
+                            selectedTopDisease?.ten_benh_en === pred.ten_benh_en
+                              ? 'bg-green-100 border border-green-300'
+                              : 'bg-gray-100 hover:bg-gray-200'
+                          }`}
                         >
                           <div>
                             <p className="font-semibold text-gray-900">#{idx + 1} {pred.ten_benh}</p>
@@ -284,29 +316,50 @@ const PredictPage = () => {
                               {getConfidencePercent(pred.confidence)}%
                             </p>
                           </div>
-                        </div>
+                        </button>
                       ))}
                     </div>
                   </div>
                 )}
 
                 {/* AI Advice */}
-                {result.advice && (
-                  <div className="bg-purple-50 rounded-lg p-4 border-l-4 border-purple-500">
-                    <p className="text-gray-600 text-sm font-semibold mb-2 flex items-center gap-2"><FaBrain className="text-purple-600" /> Tư Vấn AI từ Gemini</p>
-                    <p className="text-sm text-gray-800 whitespace-pre-wrap">
-                      {result.advice}
+                {(selectedAdviceLoading || selectedAdvice || selectedTopDisease) && (
+                  <div className={`rounded-lg p-4 border-l-4 ${selectedAdviceLoading ? 'bg-purple-100 border-purple-500' : 'bg-purple-50 border-purple-500'}`}>
+                    <p className="text-gray-600 text-sm font-semibold mb-2 flex items-center gap-2">
+                      <FaBrain className="text-purple-600" />
+                      Tư Vấn AI từ Gemini
                     </p>
+                    {!selectedTopDisease ? (
+                      <p className="text-sm text-gray-600">Hãy chọn 1 trong 3 kết quả để xem tư vấn AI.</p>
+                    ) : selectedAdviceLoading ? (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-200 text-purple-700">
+                            <FaHourglassHalf className="animate-spin" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-gray-800">Đang phân tích bệnh đã chọn...</p>
+                            <p className="text-xs text-gray-600">AI đang tạo tư vấn cho {selectedTopDisease.ten_benh}</p>
+                          </div>
+                        </div>
+                        <div className="space-y-2 rounded-lg bg-white/70 p-3 border border-purple-100">
+                          <div className="h-3 w-3/4 animate-pulse rounded-full bg-purple-200" />
+                          <div className="h-3 w-5/6 animate-pulse rounded-full bg-purple-200" />
+                          <div className="h-3 w-2/3 animate-pulse rounded-full bg-purple-200" />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <p className="text-sm font-semibold text-gray-800">
+                          Tư vấn cho: {selectedTopDisease.ten_benh}
+                        </p>
+                        <p className="text-sm text-gray-800 whitespace-pre-wrap">
+                          {selectedAdvice}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
-
-                {/* AI Advice Button */}
-                <button
-                  onClick={() => navigate('/user/advice', { state: { prediction: result } })}
-                  className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition font-semibold flex items-center justify-center gap-2"
-                >
-                  <FaBrain /> Xem tư vấn AI
-                </button>
               </div>
             ) : (
               <div className="text-center text-gray-500 py-12">

@@ -10,7 +10,7 @@ import UsersPage from './pages/Admin/UsersPage';
 import GardensPage from './pages/Admin/GardensPage';
 import DiseasesPage from './pages/Admin/DiseasesPage';
 import PredictionsPage from './pages/Admin/PredictionsPage';
-import ChatPage from './pages/Admin/ChatPage';
+import NotificationsPage from './pages/Admin/NotificationsPage';
 import ChangePasswordPage from './pages/Admin/ChangePasswordPage';
 import SeasonsPage from './pages/Admin/SeasonsPage';
 import AdminExpensesPage from './pages/Admin/ExpensesPage';
@@ -60,6 +60,7 @@ const MaintenanceGate = ({ children, maintenanceMode, loading }) => {
   const user = authService.getCurrentUser();
   const isAdmin = user?.vai_tro === 'admin';
   const isAuthPage = location.pathname === '/login' || location.pathname === '/register';
+  const isMaintenancePage = location.pathname === '/maintenance';
   const isAdminPath = location.pathname.startsWith('/admin');
 
   if (loading) {
@@ -74,6 +75,14 @@ const MaintenanceGate = ({ children, maintenanceMode, loading }) => {
   }
 
   if (!maintenanceMode) {
+    if (isMaintenancePage) {
+      return <RootRedirect />;
+    }
+
+    return children;
+  }
+
+  if (isMaintenancePage) {
     return children;
   }
 
@@ -85,7 +94,7 @@ const MaintenanceGate = ({ children, maintenanceMode, loading }) => {
     return children;
   }
 
-  return <MaintenancePage />;
+  return <Navigate to="/maintenance" replace />;
 };
 
 function App() {
@@ -307,11 +316,12 @@ function App() {
               </AdminRoute>
             }
           />
+          <Route path="/admin/ml-monitoring" element={<Navigate to="/admin" replace />} />
           <Route
-            path="/admin/chat"
+            path="/admin/notifications"
             element={
               <AdminRoute>
-                <ChatPage />
+                <NotificationsPage />
               </AdminRoute>
             }
           />

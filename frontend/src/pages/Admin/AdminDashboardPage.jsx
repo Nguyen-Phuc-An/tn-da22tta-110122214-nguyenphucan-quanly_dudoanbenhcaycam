@@ -1,63 +1,214 @@
-import React, { useState, useEffect } from 'react';
-import { FaUsers, FaLeaf, FaVirus, FaCamera, FaClipboard, FaPlus, FaChartBar, FaScrewdriver, FaCheck, FaInfoCircle } from 'react-icons/fa';
+import React, { useEffect, useMemo, useState } from 'react';
 import AdminLayout from '../../components/Admin/AdminLayout';
 import apiClient from '../../services/apiClient';
+import { Link } from 'react-router-dom';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
+import {
+  FaBolt,
+  FaCamera,
+  FaChartBar,
+  FaChartLine,
+  FaCheck,
+  FaClipboard,
+  FaClock,
+  FaDollarSign,
+  FaExclamationTriangle,
+  FaInfoCircle,
+  FaLeaf,
+  FaPlus,
+  FaScrewdriver,
+  FaShieldAlt,
+  FaThermometerHalf,
+  FaUsers,
+  FaVirus,
+} from 'react-icons/fa';
+
+const LOW_CONFIDENCE_THRESHOLD = 60;
+const CONFIDENCE_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e'];
+
+const formatNumber = (value) => Number(value || 0).toLocaleString('vi-VN');
+const formatPercent = (value) => `${Number(value || 0).toFixed(1)}%`;
+
+const quickActions = [
+  {
+    label: 'Tạo Bệnh Mới',
+    icon: <FaPlus className="inline mr-2" />,
+    to: '/admin/diseases',
+    className: 'bg-gray-100 text-gray-900 hover:bg-gray-200',
+  },
+  {
+    label: 'Tạo Người Dùng Mới',
+    icon: <FaPlus className="inline mr-2" />,
+    to: '/admin/users',
+    className: 'bg-gray-100 text-gray-900 hover:bg-gray-200',
+  },
+  {
+    label: 'Xem Báo Cáo',
+    icon: <FaChartBar className="inline mr-2" />,
+    to: '/admin/predictions',
+    className: 'bg-gray-100 text-gray-900 hover:bg-gray-200',
+  },
+  {
+    label: 'Cài Đặt Hệ Thống',
+    icon: <FaScrewdriver className="inline mr-2" />,
+    to: '/admin/ml-training',
+    className: 'bg-gray-100 text-gray-900 hover:bg-gray-200',
+  },
+];
+
+const groupByDay = (predictions) => {
+  const buckets = new Map();
+
+  predictions.forEach((item) => {
+    const key = new Date(item.ngay_du_doan).toLocaleDateString('vi-VN');
+    buckets.set(key, (buckets.get(key) || 0) + 1);
+  });
+
+  return Array.from(buckets.entries()).map(([date, count]) => ({ date, count }));
+};
+
+const groupByDisease = (predictions) => {
+  const buckets = new Map();
+
+  predictions.forEach((item) => {
+    const key = item.ket_qua_benh || 'Không xác định';
+    buckets.set(key, (buckets.get(key) || 0) + 1);
+  });
+
+  return Array.from(buckets.entries())
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value);
+};
+
+const buildConfidenceBuckets = (predictions) => {
+  const buckets = [
+    { name: '0-39%', value: 0 },
+    { name: '40-59%', value: 0 },
+    { name: '60-79%', value: 0 },
+    { name: '80-100%', value: 0 },
+  ];
+
+  predictions.forEach((item) => {
+    const confidence = Number(item.do_tin_cay || 0);
+    if (confidence < 40) buckets[0].value += 1;
+    else if (confidence < 60) buckets[1].value += 1;
+    else if (confidence < 80) buckets[2].value += 1;
+    else buckets[3].value += 1;
+  });
+
+  return buckets;
+};
 
 const AdminDashboardPage = () => {
-  const [stats, setStats] = useState({
-    users: 0,
-    gardens: 0,
-    diseases: 0,
-    predictions: 0,
-  });
+  const [stats, setStats] = useState({ users: 0, gardens: 0, diseases: 0, predictions: 0 });
+  const [predictions, setPredictions] = useState([]);
+  const [mlStatus, setMlStatus] = useState(null);
+  const [apiLatency, setApiLatency] = useState({ users: 0, gardens: 0, diseases: 0, predictions: 0, mlStatus: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    fetchStats();
-  }, []);
+    const fetchDashboard = async () => {
+      try {
+        setLoading(true);
 
-  const fetchStats = async () => {
-    try {
-      setLoading(true);
-      const [usersRes, gardensRes, diseasesRes, predictionsRes] =
-        await Promise.all([
-          apiClient.get('/users'),
-          apiClient.get('/gardens'),
-          apiClient.get('/diseases'),
-          apiClient.get('/predictions'),
+        const measure = async (key, requestFn) => {
+          const startedAt = performance.now();
+          try {
+            const response = await requestFn();
+            setApiLatency((prev) => ({ ...prev, [key]: Math.round(performance.now() - startedAt) }));
+            return response;
+          } catch (requestError) {
+            setApiLatency((prev) => ({ ...prev, [key]: Math.round(performance.now() - startedAt) }));
+            throw requestError;
+          }
+        };
+
+        const [usersRes, gardensRes, diseasesRes, predictionsRes, mlStatusRes] = await Promise.allSettled([
+          measure('users', () => apiClient.get('/users')),
+          measure('gardens', () => apiClient.get('/gardens')),
+          measure('diseases', () => apiClient.get('/diseases')),
+          measure('predictions', () => apiClient.get('/predictions')),
+          measure('mlStatus', () => apiClient.get('/ml/status')),
         ]);
 
-      console.log('✓ Users:', usersRes.data.data?.length || 0);
-      console.log('✓ Gardens:', gardensRes.data.data?.length || 0);
-      console.log('✓ Diseases:', diseasesRes.data.data?.length || 0);
-      console.log('✓ Predictions:', predictionsRes.data.data?.length || 0);
+        const usersData = usersRes.status === 'fulfilled' ? usersRes.value.data.data || [] : [];
+        const gardensData = gardensRes.status === 'fulfilled' ? gardensRes.value.data.data || [] : [];
+        const diseasesData = diseasesRes.status === 'fulfilled' ? diseasesRes.value.data.data || [] : [];
+        const predictionsData = predictionsRes.status === 'fulfilled' ? predictionsRes.value.data.data || [] : [];
 
-      setStats({
-        users: usersRes.data.data?.length || 0,
-        gardens: gardensRes.data.data?.length || 0,
-        diseases: diseasesRes.data.data?.length || 0,
-        predictions: predictionsRes.data.data?.length || 0,
-      });
-    } catch (err) {
-      console.error('❌ Error fetching stats:', err);
-      setError('Không thể tải thống kê');
-      // Mock data for development
-      setStats({
-        users: 5,
-        gardens: 8,
-        diseases: 12,
-        predictions: 24,
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+        if (usersRes.status === 'rejected' || gardensRes.status === 'rejected' || diseasesRes.status === 'rejected' || predictionsRes.status === 'rejected') {
+          throw new Error('Không thể tải toàn bộ dữ liệu dashboard');
+        }
+
+        const normalUsers = usersData.filter((user) => user.vai_tro === 'user');
+
+        setStats({
+          users: normalUsers.length,
+          gardens: gardensData.length,
+          diseases: diseasesData.length,
+          predictions: predictionsData.length,
+        });
+        setPredictions(predictionsData);
+
+        if (mlStatusRes.status === 'fulfilled') {
+          setMlStatus(mlStatusRes.value.data.data || null);
+        }
+      } catch (fetchError) {
+        console.error('❌ Error fetching dashboard data:', fetchError);
+        setError('Không thể tải thống kê');
+        setStats({ users: 5, gardens: 8, diseases: 12, predictions: 24 });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboard();
+  }, []);
+
+  const dashboard = useMemo(() => {
+    const totalPredictions = predictions.length;
+    const avgConfidence = totalPredictions
+      ? predictions.reduce((sum, item) => sum + Number(item.do_tin_cay || 0), 0) / totalPredictions
+      : 0;
+    const lowConfidenceCount = predictions.filter((item) => Number(item.do_tin_cay || 0) < LOW_CONFIDENCE_THRESHOLD).length;
+    const avgProcessingTime = totalPredictions
+      ? predictions.reduce((sum, item) => sum + Number(item.thoi_gian_xu_ly_ms || 0), 0) / totalPredictions
+      : 0;
+
+    return {
+      totalPredictions,
+      avgConfidence,
+      lowConfidenceCount,
+      lowConfidenceRate: totalPredictions ? (lowConfidenceCount / totalPredictions) * 100 : 0,
+      avgProcessingTime,
+      byDay: groupByDay(predictions),
+      byDisease: groupByDisease(predictions),
+      confidenceBuckets: buildConfidenceBuckets(predictions),
+      recentPredictions: predictions.slice(0, 10),
+    };
+  }, [predictions]);
+
+  const summary = mlStatus?.summary || {};
+  const trainingResults = mlStatus?.trainingResults || null;
+  const evaluation = mlStatus?.evaluation || null;
 
   const StatCard = ({ icon, label, value, color }) => (
-    <div
-      className={`bg-white rounded-lg shadow p-6 border-l-4 ${color} hover:shadow-lg transition`}
-    >
+    <div className={`bg-white rounded-lg shadow p-6 border-l-4 ${color} hover:shadow-lg transition`}>
       <div className="flex items-center justify-between">
         <div>
           <p className="text-gray-600 text-sm">{label}</p>
@@ -68,96 +219,266 @@ const AdminDashboardPage = () => {
     </div>
   );
 
+  if (loading) {
+    return (
+      <AdminLayout>
+        <div className="space-y-6">
+          <div className="rounded-3xl bg-slate-900 px-8 py-8 text-white shadow-2xl">
+            <div className="h-6 w-72 rounded bg-white/15 animate-pulse" />
+            <div className="mt-3 h-4 w-full max-w-2xl rounded bg-white/10 animate-pulse" />
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div key={index} className="h-28 rounded-2xl bg-white shadow-sm animate-pulse" />
+            ))}
+          </div>
+          <div className="grid gap-6 xl:grid-cols-2">
+            <div className="h-80 rounded-2xl bg-white shadow-sm animate-pulse" />
+            <div className="h-80 rounded-2xl bg-white shadow-sm animate-pulse" />
+          </div>
+        </div>
+      </AdminLayout>
+    );
+  }
+
   return (
     <AdminLayout>
-      <div>
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Bảng Điều Khiển</h1>
-          <p className="text-gray-600 mt-2">Chào mừng đến bảng quản trị viên</p>
-        </div>
-
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <StatCard
-            icon={<FaUsers />}
-            label="Total Users"
-            value={stats.users}
-            color="border-blue-500"
-          />
-          <StatCard
-            icon={<FaLeaf />}
-            label="Total Gardens"
-            value={stats.gardens}
-            color="border-green-500"
-          />
-          <StatCard
-            icon={<FaVirus />}
-            label="Total Diseases"
-            value={stats.diseases}
-            color="border-red-500"
-          />
-          <StatCard
-            icon={<FaCamera />}
-            label="Total Predictions"
-            value={stats.predictions}
-            color="border-purple-500"
-          />
-        </div>
-
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Recent Activity */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">
-              <FaClipboard className="inline mr-2" /> Hành Động Nhanh
-            </h2>
-            <div className="space-y-3">
-              <button className="w-full px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition text-left">
-                <FaPlus className="inline mr-2" /> Tạo Bệnh Mới
-              </button>
-              <button className="w-full px-4 py-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition text-left">
-                <FaPlus className="inline mr-2" /> Tạo Người Dùng Mới
-              </button>
-              <button className="w-full px-4 py-2 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition text-left">
-                <FaChartBar className="inline mr-2" /> Xem Báo Cáo
-              </button>
-              <button className="w-full px-4 py-2 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition text-left">
-                <FaScrewdriver className="inline mr-2" /> Cài Đặt Hệ Thống
-              </button>
+      <div className="space-y-6">
+        <section className="rounded-3xl bg-slate-900 px-8 py-8 text-white shadow-2xl">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <h1 className="mt-4 text-3xl font-bold md:text-4xl">Bảng điều khiển + ML Monitoring</h1>
+              <p className="mt-3 max-w-3xl text-sm text-slate-300">
+                Trang tổng hợp thống kê hệ thống và theo dõi ML để theo dõi nhanh tình trạng vận hành.
+              </p>
             </div>
-          </div>
-
-          {/* System Info */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">
-              <FaInfoCircle className="inline mr-2" /> Thông Tin Hệ Thống
-            </h2>
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Trạng Thái Backend</span>
-                <span className="text-green-600 font-semibold"><FaCheck className="inline mr-2" /> Trực Tuyến</span>
+            <div className="grid grid-cols-2 gap-3 text-sm text-slate-200">
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                <div className="text-xs text-slate-400">Prediction API</div>
+                <div className="mt-1 font-semibold">{apiLatency.predictions} ms</div>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Cơ Sở Dữ Liệu</span>
-                <span className="text-green-600 font-semibold"><FaCheck className="inline mr-2" /> Đã Kết Nối</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">API Nhân Dạng</span>
-                <span className="text-green-600 font-semibold"><FaCheck className="inline mr-2" /> Hoạt Động</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Gemini AI</span>
-                <span className="text-green-600 font-semibold">✓ Sẵn Sàng</span>
-              </div>
-              <hr className="my-2" />
-              <div className="flex justify-between">
-                <span className="text-gray-600">Lần Đồng Bộ Cuối</span>
-                <span className="text-gray-900">Vừa đây</span>
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                <div className="text-xs text-slate-400">ML Status API</div>
+                <div className="mt-1 font-semibold">{apiLatency.mlStatus} ms</div>
               </div>
             </div>
           </div>
+        </section>
+
+        {error && (
+          <div className="rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-900">
+            {error}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <StatCard icon={<FaUsers />} label="Total Users" value={stats.users} color="border-gray-900" />
+          <StatCard icon={<FaLeaf />} label="Total Gardens" value={stats.gardens} color="border-gray-900" />
+          <StatCard icon={<FaVirus />} label="Total Diseases" value={stats.diseases} color="border-gray-900" />
+          <StatCard icon={<FaCamera />} label="Total Predictions" value={stats.predictions} color="border-gray-900" />
         </div>
+
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm border-t-4 border-t-gray-900">
+            <p className="text-sm font-medium text-slate-500">Độ tin cậy TB</p>
+            <p className="mt-2 text-3xl font-bold text-slate-900">{formatPercent(dashboard.avgConfidence)}</p>
+            <p className="mt-2 text-xs text-slate-500">Tính từ do_tin_cay</p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm border-t-4 border-t-gray-700">
+            <p className="text-sm font-medium text-slate-500">Low-confidence</p>
+            <p className="mt-2 text-3xl font-bold text-slate-900">{formatNumber(dashboard.lowConfidenceCount)}</p>
+            <p className="mt-2 text-xs text-slate-500">&lt; {LOW_CONFIDENCE_THRESHOLD}%</p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm border-t-4 border-t-gray-800">
+            <p className="text-sm font-medium text-slate-500">Thời gian xử lý TB</p>
+            <p className="mt-2 text-3xl font-bold text-slate-900">{Math.round(dashboard.avgProcessingTime)} ms</p>
+            <p className="mt-2 text-xs text-slate-500">Từ thoi_gian_xu_ly_ms</p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm border-t-4 border-t-gray-900">
+            <p className="text-sm font-medium text-slate-500">Tổng ảnh train</p>
+            <p className="mt-2 text-3xl font-bold text-slate-900">{formatNumber(summary.total_images)}</p>
+            <p className="mt-2 text-xs text-slate-500">Dữ liệu từ /api/ml/status</p>
+          </div>
+        </div>
+
+        <div className="grid gap-6 xl:grid-cols-3">
+          <div className="xl:col-span-2 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">Số lần dự đoán theo ngày</h2>
+                <p className="text-sm text-slate-500">Dựa trên lịch sử dự đoán gần nhất</p>
+              </div>
+              <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">API: /api/predictions</div>
+            </div>
+            <div className="h-80 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={dashboard.byDay}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="date" tick={{ fill: '#475569', fontSize: 12 }} />
+                  <YAxis tick={{ fill: '#475569', fontSize: 12 }} />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="count" stroke="#2563eb" strokeWidth={3} dot={{ r: 4 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="mb-4">
+              <h2 className="text-lg font-bold text-slate-900">Confidence buckets</h2>
+              <p className="text-sm text-slate-500">Tỷ lệ các mức tin cậy</p>
+            </div>
+            <div className="h-80 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={dashboard.confidenceBuckets} dataKey="value" nameKey="name" innerRadius={55} outerRadius={95} paddingAngle={3}>
+                    {dashboard.confidenceBuckets.map((entry, index) => (
+                      <Cell key={entry.name} fill={CONFIDENCE_COLORS[index % CONFIDENCE_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-6 xl:grid-cols-2">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">Phân bố bệnh dự đoán</h2>
+                <p className="text-sm text-slate-500">Top các bệnh xuất hiện nhiều nhất</p>
+              </div>
+              <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">/api/diseases</div>
+            </div>
+            <div className="h-80 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={dashboard.byDisease.slice(0, 8)}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="name" tick={{ fill: '#475569', fontSize: 12 }} interval={0} angle={-15} textAnchor="end" height={60} />
+                  <YAxis tick={{ fill: '#475569', fontSize: 12 }} />
+                  <Tooltip />
+                  <Bar dataKey="value" fill="#16a34a" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">Dataset / Model health</h2>
+                <p className="text-sm text-slate-500">Dữ liệu từ /api/ml/status</p>
+              </div>
+              <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">retrain summary</div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="text-xs text-slate-500">Tổng ảnh</div>
+                <div className="mt-1 text-2xl font-bold text-slate-900">{formatNumber(summary.total_images)}</div>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="text-xs text-slate-500">Số class</div>
+                <div className="mt-1 text-2xl font-bold text-slate-900">{formatNumber(summary.total_diseases)}</div>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="text-xs text-slate-500">Ảnh gốc</div>
+                <div className="mt-1 text-2xl font-bold text-slate-900">{formatNumber(summary.original_images)}</div>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="text-xs text-slate-500">Ảnh train thêm</div>
+                <div className="mt-1 text-2xl font-bold text-slate-900">{formatNumber(summary.training_images)}</div>
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="rounded-2xl border border-slate-200 p-4">
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-700"><FaShieldAlt /> Last retrain</div>
+                <div className="mt-2 text-sm text-slate-500">
+                  {trainingResults
+                    ? `Val Acc: ${formatPercent(trainingResults.val_accuracy * 100)} | Val Loss: ${Number(trainingResults.val_loss || 0).toFixed(4)}`
+                    : 'Chưa có report retrain gần nhất'}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 p-4">
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-700"><FaThermometerHalf /> Validation metrics</div>
+                <div className="mt-2 text-sm text-slate-500">
+                  {evaluation
+                    ? `F1 wei: ${formatPercent(evaluation.f1_weighted * 100)} | Recall wei: ${formatPercent(evaluation.recall_weighted * 100)}`
+                    : 'Chưa có evaluation gần nhất'}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">Lịch sử dự đoán gần nhất</h2>
+              <p className="text-sm text-slate-500">Danh sách này có thể dùng làm bảng monitoring chính</p>
+            </div>
+            <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">low confidence: {dashboard.lowConfidenceCount}</div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-200 text-sm">
+              <thead className="bg-slate-50 text-slate-600">
+                <tr>
+                  <th className="px-4 py-3 text-left font-semibold">Thời gian</th>
+                  <th className="px-4 py-3 text-left font-semibold">Bệnh</th>
+                  <th className="px-4 py-3 text-left font-semibold">Confidence</th>
+                  <th className="px-4 py-3 text-left font-semibold">Xử lý</th>
+                  <th className="px-4 py-3 text-left font-semibold">Vườn</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {dashboard.recentPredictions.length > 0 ? (
+                  dashboard.recentPredictions.map((item) => (
+                    <tr key={item._id} className="hover:bg-slate-50/80">
+                      <td className="px-4 py-3 text-slate-700">{new Date(item.ngay_du_doan).toLocaleString('vi-VN')}</td>
+                      <td className="px-4 py-3 font-medium text-slate-900">{item.ket_qua_benh}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${Number(item.do_tin_cay || 0) < LOW_CONFIDENCE_THRESHOLD ? 'bg-slate-200 text-slate-900' : 'bg-slate-100 text-slate-700'}`}>
+                          {Number(item.do_tin_cay || 0)}%
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-slate-700">{Number(item.thoi_gian_xu_ly_ms || 0)} ms</td>
+                      <td className="px-4 py-3 text-slate-700">{item.garden_id?.ten_vuon || '-'}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td className="px-4 py-8 text-center text-slate-500" colSpan={5}>
+                      Chưa có dữ liệu dự đoán để hiển thị.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="grid gap-4 md:grid-cols-3">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Error rate proxy</div>
+            <div className="mt-2 text-3xl font-bold text-slate-900">{formatPercent(dashboard.lowConfidenceRate)}</div>
+            <p className="mt-2 text-sm text-slate-500">Tỷ lệ confidence thấp hơn {LOW_CONFIDENCE_THRESHOLD}%</p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Prediction latency</div>
+            <div className="mt-2 text-3xl font-bold text-slate-900">{Math.round(dashboard.avgProcessingTime)} ms</div>
+            <p className="mt-2 text-sm text-slate-500">Trung bình từ khi backend nhận ảnh đến khi lưu kết quả</p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Data source</div>
+            <div className="mt-2 text-3xl font-bold text-slate-900">Live</div>
+            <p className="mt-2 text-sm text-slate-500">Tận dụng prediction history, ML status và diseases API hiện có</p>
+          </div>
+        </section>
       </div>
     </AdminLayout>
   );

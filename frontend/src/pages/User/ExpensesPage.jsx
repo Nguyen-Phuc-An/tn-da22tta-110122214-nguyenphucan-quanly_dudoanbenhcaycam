@@ -53,17 +53,25 @@ const ExpensesPage = () => {
     }
   }, [location.pathname]);
 
-  // Auto-set season when garden is selected
+  // Auto-set season when garden is selected in create mode
   useEffect(() => {
-    if (selectedGarden && seasons.length > 0) {
-      const gardenSeasons = seasons.filter(
-        (s) => s.garden_id?._id === selectedGarden || s.garden_id === selectedGarden
-      );
-      if (gardenSeasons.length > 0) {
-        setValue('season_id', gardenSeasons[0]._id);
-      }
+    if (editingId) {
+      return;
     }
-  }, [selectedGarden, seasons, setValue]);
+
+    if (!selectedGarden) {
+      setValue('season_id', '');
+      return;
+    }
+
+    const currentGarden = gardens.find((garden) => garden._id === selectedGarden);
+    const currentSeasonId = currentGarden?.season_id?._id || currentGarden?.season_id || '';
+
+    setValue('season_id', currentSeasonId, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  }, [selectedGarden, gardens, editingId, setValue]);
 
   // Reset to page 1 when search term changes
   useEffect(() => {
@@ -289,9 +297,7 @@ const ExpensesPage = () => {
     }
   };
 
-  const filteredSeasons = selectedGarden
-    ? seasons.filter((s) => s.garden_id?._id === selectedGarden || s.garden_id === selectedGarden)
-    : [];
+  const filteredSeasons = seasons;
 
   const filteredExpenses = expenses.filter(
     (expense) =>
@@ -783,7 +789,7 @@ const ExpensesPage = () => {
                   <div className="space-y-2">
                   <button
                     onClick={() => handleEdit(selectedExpense)}
-                    className="w-full px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition font-medium flex items-center justify-center gap-2"
+                    className="w-full px-4 py-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition font-medium flex items-center justify-center gap-2"
                   >
                     <FaEdit /> Sửa
                   </button>

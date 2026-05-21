@@ -1,6 +1,32 @@
-import React, { useState, useEffect } from 'react';
-import { FaChartBar, FaChartLine, FaVirus, FaLeaf, FaClipboardList, FaDollarSign, FaFileAlt } from 'react-icons/fa';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  FaChartBar,
+  FaChartLine,
+  FaVirus,
+  FaLeaf,
+  FaClipboardList,
+  FaDollarSign,
+  FaFileAlt,
+  FaClock,
+  FaSeedling,
+  FaArrowUp,
+  FaBullseye,
+} from 'react-icons/fa';
+import {
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts';
 import UserLayout from '../../components/User/UserLayout';
 import apiClient from '../../services/apiClient';
 import toast from 'react-hot-toast';
@@ -17,6 +43,8 @@ const StatisticsPage = () => {
     expensesByType: {},
   });
   const [loading, setLoading] = useState(true);
+
+  const confidenceColors = ['#ef4444', '#f97316', '#eab308', '#22c55e'];
 
   useEffect(() => {
     fetchStats();
@@ -86,6 +114,58 @@ const StatisticsPage = () => {
     return Math.round(conf);
   };
 
+  const insights = useMemo(() => {
+    const totalPredictions = stats.predictions.length;
+    const avgExpensePerGarden = stats.gardens.length ? stats.totalExpenses / stats.gardens.length : 0;
+    const avgConfidence = totalPredictions
+      ? stats.predictions.reduce((sum, prediction) => sum + getConfidencePercent(prediction.do_tin_cay), 0) / totalPredictions
+      : 0;
+
+    const byDayMap = new Map();
+    const byGardenMap = new Map();
+    const confidenceBuckets = [
+      { name: '0-39%', value: 0 },
+      { name: '40-59%', value: 0 },
+      { name: '60-79%', value: 0 },
+      { name: '80-100%', value: 0 },
+    ];
+
+    stats.predictions.forEach((prediction) => {
+      const dateKey = prediction.ngay_du_doan ? new Date(prediction.ngay_du_doan).toLocaleDateString('vi-VN') : 'N/A';
+      byDayMap.set(dateKey, (byDayMap.get(dateKey) || 0) + 1);
+
+      const gardenKey = prediction.garden_id?.ten_vuon || 'Chưa gắn vườn';
+      byGardenMap.set(gardenKey, (byGardenMap.get(gardenKey) || 0) + 1);
+
+      const confidence = getConfidencePercent(prediction.do_tin_cay);
+      if (confidence < 40) confidenceBuckets[0].value += 1;
+      else if (confidence < 60) confidenceBuckets[1].value += 1;
+      else if (confidence < 80) confidenceBuckets[2].value += 1;
+      else confidenceBuckets[3].value += 1;
+    });
+
+    const topGarden = Array.from(byGardenMap.entries())
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)[0];
+
+    const recentLog = stats.logs[0];
+
+    return {
+      avgExpensePerGarden,
+      avgConfidence,
+      byDay: Array.from(byDayMap.entries())
+        .map(([date, count]) => ({ date, count }))
+        .slice(-10),
+      byGarden: Array.from(byGardenMap.entries())
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 6),
+      confidenceBuckets,
+      topGarden,
+      recentLog,
+    };
+  }, [stats]);
+
   // Get latest prediction for each garden
   const getLatestPredictionByGarden = () => {
     const predictionsByGarden = {};
@@ -113,64 +193,126 @@ const StatisticsPage = () => {
 
   return (
     <UserLayout>
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-8 flex items-center gap-2">
-          <FaChartBar /> Thống kê
-        </h1>
+      <div className="space-y-8">
+        <section className="rounded-3xl bg-slate-900 px-8 py-8 text-white shadow-2xl">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <h1 className="mt-4 text-3xl font-bold md:text-4xl">Tổng quan dữ liệu của bạn</h1>
+              <p className="mt-3 max-w-3xl text-sm text-slate-300">
+                Theo dõi dự đoán, chi phí, vườn và nhật ký theo một giao diện gọn, rõ và dễ đọc.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-sm text-slate-200">
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                <div className="text-xs text-slate-400">Dự đoán</div>
+                <div className="mt-1 font-semibold">{stats.predictions.length}</div>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                <div className="text-xs text-slate-400">Confidence TB</div>
+                <div className="mt-1 font-semibold">{insights.avgConfidence.toFixed(1)}%</div>
+              </div>
+            </div>
+          </div>
+        </section>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
-          <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-orange-500">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-slate-900">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600 text-sm">Tổng chi phí</p>
-                <p className="text-2xl font-bold text-gray-900 mt-2">
-                  {(stats.totalExpenses / 1000000).toFixed(1)}M ₫
-                </p>
+                <p className="text-2xl font-bold text-gray-900 mt-2">{(stats.totalExpenses / 1000000).toFixed(1)}M ₫</p>
               </div>
-              <div className="text-3xl text-orange-500 opacity-20"><FaDollarSign /></div>
+              <div className="text-3xl text-slate-900/20"><FaDollarSign /></div>
             </div>
           </div>
-
-          <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-blue-500">
+          <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-blue-600">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600 text-sm">Dự đoán</p>
                 <p className="text-2xl font-bold text-gray-900 mt-2">{stats.predictions.length}</p>
               </div>
-              <div className="text-3xl text-blue-500 opacity-20"><FaChartBar /></div>
+              <div className="text-3xl text-blue-600/20"><FaChartBar /></div>
             </div>
           </div>
-
-          <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-red-500">
+          <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-rose-600">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600 text-sm">Bệnh phổ biến</p>
-                <p className="text-lg font-bold text-gray-900 mt-2">
-                  {stats.mostCommonDisease?.name || 'N/A'}
-                </p>
+                <p className="text-lg font-bold text-gray-900 mt-2">{stats.mostCommonDisease?.name || 'N/A'}</p>
               </div>
-              <div className="text-3xl text-red-500 opacity-20">🦠</div>
+              <div className="text-3xl text-rose-600/20">🦠</div>
             </div>
           </div>
-
-          <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-green-500">
+          <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-emerald-600">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600 text-sm">Số vườn</p>
                 <p className="text-2xl font-bold text-gray-900 mt-2">{stats.gardens.length}</p>
               </div>
-              <div className="text-3xl text-green-500 opacity-20"><FaLeaf /></div>
+              <div className="text-3xl text-emerald-600/20"><FaLeaf /></div>
             </div>
           </div>
-
-          <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-purple-500">
+          <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-violet-600">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600 text-sm">Nhật ký</p>
                 <p className="text-2xl font-bold text-gray-900 mt-2">{stats.logs.length}</p>
               </div>
-              <div className="text-3xl text-purple-500 opacity-20"><FaFileAlt /></div>
+              <div className="text-3xl text-violet-600/20"><FaFileAlt /></div>
+            </div>
+          </div>
+        </div>
+
+        {/* Trend / Summary */}
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          <div className="xl:col-span-2 bg-white rounded-xl shadow-md p-6">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <div>
+                <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                  <FaChartLine className="text-blue-600" /> Xu hướng dự đoán theo ngày
+                </h3>
+                <p className="text-sm text-gray-500">Nhìn nhanh mức độ hoạt động gần đây</p>
+              </div>
+              <div className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">10 ngày gần nhất</div>
+            </div>
+            {insights.byDay.length === 0 ? (
+              <div className="text-center text-gray-500 py-8">Chưa có dữ liệu dự đoán</div>
+            ) : (
+              <div className="h-72 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={insights.byDay}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="date" tick={{ fill: '#475569', fontSize: 12 }} />
+                    <YAxis tick={{ fill: '#475569', fontSize: 12 }} />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="count" stroke="#2563eb" strokeWidth={3} dot={{ r: 4 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+
+          <div className="bg-white rounded-xl shadow-md p-6">
+            <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <FaClock className="text-emerald-600" /> Chỉ số nhanh
+            </h3>
+            <div className="space-y-4">
+              <div className="rounded-xl bg-slate-50 p-4 border border-slate-200">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Độ tin cậy TB</p>
+                <p className="mt-1 text-2xl font-bold text-slate-900">{insights.avgConfidence.toFixed(1)}%</p>
+                <p className="text-sm text-slate-500 mt-1">Mức confidence trung bình của các dự đoán</p>
+              </div>
+              <div className="rounded-xl bg-slate-50 p-4 border border-slate-200">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Chi phí TB / vườn</p>
+                <p className="mt-1 text-2xl font-bold text-slate-900">{(insights.avgExpensePerGarden / 1000000).toFixed(2)}M ₫</p>
+                <p className="text-sm text-slate-500 mt-1">Dùng để so sánh giữa các vườn</p>
+              </div>
+              <div className="rounded-xl bg-slate-50 p-4 border border-slate-200">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Nhật ký gần nhất</p>
+                <p className="mt-1 text-lg font-bold text-slate-900">{insights.recentLog?.task_id?.ten_cong_viec || 'Chưa có'}</p>
+                <p className="text-sm text-slate-500 mt-1">{insights.recentLog?.garden_id?.ten_vuon || '—'}</p>
+              </div>
             </div>
           </div>
         </div>
@@ -180,7 +322,7 @@ const StatisticsPage = () => {
           {/* Disease Statistics - Pie Chart */}
           <div className="bg-white rounded-xl shadow-md p-6">
             <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <FaVirus className="text-red-600" /> Bệnh phát hiện
+              <FaVirus className="text-rose-600" /> Bệnh phát hiện
             </h3>
 
             {stats.diseaseList.length === 0 ? (
@@ -198,7 +340,7 @@ const StatisticsPage = () => {
                     label={({ name, count }) => `${name}: ${count}`}
                   >
                     {stats.diseaseList.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899'][index % 7]} />
+                      <Cell key={`cell-${index}`} fill={confidenceColors[index % confidenceColors.length]} />
                     ))}
                   </Pie>
                   <Tooltip formatter={(value) => `${value} lần`} />
@@ -210,7 +352,7 @@ const StatisticsPage = () => {
           {/* Expense by Type - Bar Chart */}
           <div className="bg-white rounded-xl shadow-md p-6">
             <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <FaDollarSign className="text-orange-600" /> Chi phí theo loại
+              <FaDollarSign className="text-blue-600" /> Chi phí theo loại
             </h3>
 
             {Object.keys(stats.expensesByType).length === 0 ? (
@@ -229,7 +371,7 @@ const StatisticsPage = () => {
                   <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} />
                   <YAxis label={{ value: 'Triệu ₫', angle: -90, position: 'insideLeft' }} />
                   <Tooltip formatter={(value) => `${value.toFixed(2)}M ₫`} />
-                  <Bar dataKey="amount" fill="#f97316" />
+                  <Bar dataKey="amount" fill="#2563eb" />
                 </BarChart>
               </ResponsiveContainer>
             )}

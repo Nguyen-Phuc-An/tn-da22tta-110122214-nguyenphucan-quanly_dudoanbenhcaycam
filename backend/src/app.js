@@ -16,7 +16,7 @@ const predictionRoutes = require('./routes/prediction.routes');
 const diseaseRoutes = require('./routes/disease.routes');
 const seasonRoutes = require('./routes/season.routes');
 const taskRoutes = require('./routes/task.routes');
-const chatRoutes = require('./routes/chat.routes');
+const notificationRoutes = require('./routes/notification.routes');
 const systemRoutes = require('./routes/system.routes');
 // ===== CẬP NHẬT: Thêm Fertilizer & Pesticide routes =====
 const fertilizerRoutes = require('./routes/fertilizer.routes');
@@ -160,7 +160,7 @@ app.get('/', (req, res) => {
       diseases: '/api/diseases',
       seasons: '/api/seasons',
       tasks: '/api/tasks',
-      chat: '/api/chat',
+      notifications: '/api/notifications',
     },
   });
 });
@@ -180,7 +180,7 @@ app.use('/api/predictions', predictionRoutes);
 app.use('/api/diseases', diseaseRoutes);
 app.use('/api/seasons', seasonRoutes);
 app.use('/api/tasks', taskRoutes);
-app.use('/api/chat', chatRoutes);
+app.use('/api/notifications', notificationRoutes);
 app.use('/api/system', systemRoutes);
 // ===== CẬP NHẬT: Đăng ký Fertilizer & Pesticide routes =====
 app.use('/api/fertilizers', fertilizerRoutes);

@@ -1,18 +1,18 @@
 {
   "trainingResults": {
-    "train_accuracy": 0.964698314666748,
-    "val_accuracy": 0.8822011947631836,
-    "train_loss": 0.09920365363359451,
-    "val_loss": 0.5033259987831116,
-    "best_val_accuracy": 0.8925193548202515,
-    "best_val_loss": 0.3323516845703125
+    "train_accuracy": 0.9604193568229675,
+    "val_accuracy": 0.8701633810997009,
+    "train_loss": 0.11054237186908722,
+    "val_loss": 0.3814496695995331,
+    "best_val_accuracy": 0.8942390084266663,
+    "best_val_loss": 0.3262360990047455
   },
   "evaluation": {
-    "precision_macro": 0.7274323049668671,
-    "recall_macro": 0.7186916160512707,
-    "f1_macro": 0.6782093287564623,
-    "precision_weighted": 0.9205575976009802,
-    "recall_weighted": 0.882201203783319,
-    "f1_weighted": 0.8925558388645951
+    "precision_macro": 0.7322910940050416,
+    "recall_macro": 0.6196897414682255,
+    "f1_macro": 0.6504068921924449,
+    "precision_weighted": 0.882029298867646,
+    "recall_weighted": 0.8701633705932932,
+    "f1_weighted": 0.8708602190544386
   }
 }

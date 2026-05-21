@@ -498,7 +498,7 @@ const DiseasesPage = () => {
                     <td className="px-6 py-4 text-center whitespace-nowrap space-x-2">
                       <button
                         onClick={() => handleEdit(disease)}
-                        className="px-3 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition text-sm"
+                        className="px-3 py-1 bg-green-50 text-green-600 rounded hover:bg-green-100 transition text-sm"
                       >
                         <FaEdit className="inline mr-1" /> Sửa
                       </button>

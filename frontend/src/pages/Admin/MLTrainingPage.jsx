@@ -190,7 +190,7 @@ const MLTrainingPage = () => {
           icon: FaCheckCircle,
           macro: evaluation.precision_macro,
           weighted: evaluation.precision_weighted,
-          accent: 'from-emerald-500 to-emerald-600',
+          accent: 'from-green-600 to-green-700',
           description: 'Độ đúng của các dự đoán bệnh dương tính',
         },
         {
@@ -199,7 +199,7 @@ const MLTrainingPage = () => {
           icon: FaBalanceScale,
           macro: evaluation.recall_macro,
           weighted: evaluation.recall_weighted,
-          accent: 'from-sky-500 to-sky-600',
+          accent: 'from-slate-900 to-slate-700',
           description: 'Khả năng phát hiện các trường hợp bệnh thực tế',
         },
         {
@@ -208,7 +208,7 @@ const MLTrainingPage = () => {
           icon: FaChartLine,
           macro: evaluation.f1_macro,
           weighted: evaluation.f1_weighted,
-          accent: 'from-violet-500 to-violet-600',
+          accent: 'from-slate-900 to-slate-700',
           description: 'Chỉ số cân bằng giữa Precision và Recall',
         },
       ]
@@ -224,7 +224,7 @@ const MLTrainingPage = () => {
             <button
               onClick={handleToggleMaintenance}
               disabled={maintenanceLoading}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-white transition disabled:bg-gray-400 ${maintenanceMode ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-white transition disabled:bg-gray-400 ${maintenanceMode ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-900 hover:bg-gray-800'}`}
             >
               {maintenanceMode ? <FaUnlock /> : <FaLock />}
               {maintenanceMode ? 'Mở Khóa Hệ Thống' : 'Bật Bảo Trì'}
@@ -232,7 +232,7 @@ const MLTrainingPage = () => {
             <button
               onClick={handleRetrain}
               disabled={retraining || loading}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400"
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:bg-gray-400"
             >
               <FaCog className={retraining ? 'animate-spin' : ''} />
               {retraining ? 'Đang Đào Tạo...' : 'Đào Tạo Lại'}
@@ -240,7 +240,7 @@ const MLTrainingPage = () => {
           </div>
         </div>
 
-        <div className={`rounded-2xl border p-4 flex items-center justify-between gap-4 ${maintenanceMode ? 'border-red-200 bg-red-50 text-red-900' : 'border-green-200 bg-green-50 text-green-900'}`}>
+        <div className={`rounded-2xl border p-4 flex items-center justify-between gap-4 ${maintenanceMode ? 'border-gray-900 bg-gray-50 text-gray-900' : 'border-gray-200 bg-gray-50 text-gray-900'}`}>
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.2em] mb-1">Trạng thái hệ thống</p>
             <p className="text-lg font-bold">
@@ -253,7 +253,7 @@ const MLTrainingPage = () => {
         </div>
 
         {/* Summary Card */}
-        <div className="bg-gradient-to-r from-blue-500 to-blue-700 text-white rounded-lg p-6 shadow">
+        <div className="bg-gray-900 text-white rounded-lg p-6 shadow">
           <div className="grid grid-cols-4 gap-4 text-center">
             <div>
               <p className="text-sm opacity-80">Số Bệnh</p>
@@ -278,7 +278,7 @@ const MLTrainingPage = () => {
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3 mb-5">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-600 mb-2">Kết quả huấn luyện</p>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gray-900 mb-2">Kết quả huấn luyện</p>
               <h2 className="text-2xl font-bold text-gray-900">Accuracy / Loss của lần train gần nhất</h2>
               <p className="text-sm text-gray-500 mt-1">
                 Hiển thị giá trị cuối cùng của epoch cuối và giá trị validation tốt nhất trong lần huấn luyện gần nhất.
@@ -297,37 +297,36 @@ const MLTrainingPage = () => {
                   label: 'Train Accuracy',
                   value: formatPercent(trainingResults.train_accuracy),
                   icon: FaBullseye,
-                  accent: 'from-blue-500 to-blue-600',
+                  accent: 'from-gray-900 to-gray-700',
                 },
                 {
                   key: 'val_accuracy',
                   label: 'Val Accuracy',
                   value: formatPercent(trainingResults.val_accuracy),
                   icon: FaCheckCircle,
-                  accent: 'from-emerald-500 to-emerald-600',
+                  accent: 'from-green-600 to-green-700',
                 },
                 {
                   key: 'train_loss',
                   label: 'Train Loss',
                   value: formatLoss(trainingResults.train_loss),
                   icon: FaRegTimesCircle,
-                  accent: 'from-orange-500 to-orange-600',
+                  accent: 'from-gray-900 to-gray-700',
                 },
                 {
                   key: 'val_loss',
                   label: 'Val Loss',
                   value: formatLoss(trainingResults.val_loss),
                   icon: FaChartLine,
-                  accent: 'from-violet-500 to-violet-600',
+                  accent: 'from-gray-900 to-gray-700',
                 },
               ].map((item) => {
                 const Icon = item.icon;
 
                 return (
                   <div key={item.key} className="rounded-2xl border border-gray-200 overflow-hidden bg-gray-50 shadow-sm">
-                    <div className={`bg-gradient-to-r ${item.accent} text-white px-5 py-4 flex items-center justify-between`}>
+                    <div className="bg-gray-900 text-white px-5 py-4 flex items-center justify-between">
                       <div>
-                        <p className="text-sm opacity-90">Lần train gần nhất</p>
                         <h3 className="text-xl font-bold">{item.label}</h3>
                       </div>
                       <Icon className="text-2xl opacity-90" />
@@ -355,7 +354,7 @@ const MLTrainingPage = () => {
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3 mb-5">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-600 mb-2">Đánh giá mô hình</p>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gray-900 mb-2">Đánh giá mô hình</p>
               <h2 className="text-2xl font-bold text-gray-900">Precision / Recall / F1-score</h2>
               <p className="text-sm text-gray-500 mt-1">
                 Tính trên tập validation sau khi hoàn tất huấn luyện hoặc đào tạo lại.
@@ -372,29 +371,38 @@ const MLTrainingPage = () => {
                 const Icon = item.icon;
                 return (
                   <div key={item.key} className="rounded-2xl border border-gray-200 overflow-hidden bg-gray-50 shadow-sm">
-                    <div className={`bg-gradient-to-r ${item.accent} text-white px-5 py-4 flex items-center justify-between`}>
+                    <div className="bg-gray-900 text-white px-5 py-4 flex items-center justify-between">
                       <div>
-                        <p className="text-sm opacity-90">Macro average</p>
                         <h3 className="text-xl font-bold">{item.label}</h3>
                       </div>
                       <Icon className="text-2xl opacity-90" />
                     </div>
                     <div className="p-5">
-                      <div className="flex items-end justify-between gap-4 mb-4">
+                      <div className="space-y-3">
                         <div>
-                          <p className="text-sm text-gray-500">Macro</p>
-                          <p className="text-4xl font-bold text-gray-900">{(item.macro * 100).toFixed(2)}%</p>
+                          <div className="mb-1 flex items-center justify-between text-xs text-gray-500">
+                            <span>Macro</span>
+                            <span>{(item.macro * 100).toFixed(2)}%</span>
+                          </div>
+                          <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
+                            <div
+                              className="h-full rounded-full bg-green-600"
+                              style={{ width: `${Math.max(0, Math.min(item.macro * 100, 100))}%` }}
+                            />
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <p className="text-sm text-gray-500">Weighted</p>
-                          <p className="text-lg font-semibold text-gray-700">{(item.weighted * 100).toFixed(2)}%</p>
+                        <div>
+                          <div className="mb-1 flex items-center justify-between text-xs text-gray-500">
+                            <span>Weighted</span>
+                            <span>{(item.weighted * 100).toFixed(2)}%</span>
+                          </div>
+                          <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
+                            <div
+                              className="h-full rounded-full bg-gray-500"
+                              style={{ width: `${Math.max(0, Math.min(item.weighted * 100, 100))}%` }}
+                            />
+                          </div>
                         </div>
-                      </div>
-                      <div className="h-2 w-full rounded-full bg-gray-200 overflow-hidden">
-                        <div
-                          className={`h-full rounded-full bg-gradient-to-r ${item.accent}`}
-                          style={{ width: `${Math.max(0, Math.min(item.macro * 100, 100))}%` }}
-                        />
                       </div>
                       <p className="mt-4 text-sm text-gray-500 leading-relaxed">{item.description}</p>
                     </div>
@@ -407,21 +415,6 @@ const MLTrainingPage = () => {
               Chưa có dữ liệu đánh giá. Hãy chạy huấn luyện lại để hệ thống tính Precision, Recall và F1-score.
             </div>
           )}
-        </div>
-
-        {/* Info */}
-        <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded">
-          <div className="flex gap-3">
-            <FaInfoCircle className="text-blue-600 flex-shrink-0 mt-1" />
-            <div className="text-sm text-blue-800">
-              <p className="font-semibold">ℹ️ Hướng dẫn:</p>
-              <ul className="list-disc list-inside mt-2 space-y-1">
-                <li>Chọn bệnh → Upload ảnh, số lượng bao nhiêu cũng được</li>
-                <li>Sau khi upload xong, click "Đào Tạo Lại" để cập nhật model</li>
-                <li>Quá trình đào tạo mất 10-30 phút, chạy nền không cần chờ</li>
-              </ul>
-            </div>
-          </div>
         </div>
 
         {/* Loading */}
@@ -457,7 +450,7 @@ const MLTrainingPage = () => {
                     </div>
                     <div>
                       <p className="text-xs text-gray-600">Ảnh Mới</p>
-                      <p className="font-bold text-lg text-blue-600">
+                      <p className="font-bold text-lg text-gray-900">
                         {data.new_images}
                       </p>
                     </div>
@@ -472,7 +465,7 @@ const MLTrainingPage = () => {
                   {/* Upload Button */}
                   <button
                     onClick={() => handleUploadClick(disease)}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600 transition"
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition"
                   >
                     <FaUpload size={14} />
                     Tải Ảnh Lên
@@ -482,7 +475,7 @@ const MLTrainingPage = () => {
                   {data.total > 0 && (
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div
-                        className="bg-blue-600 h-2 rounded-full transition-all"
+                        className="bg-gray-900 h-2 rounded-full transition-all"
                         style={{
                           width: `${Math.min(
                             ((data.total || 0) / 500) * 100,
@@ -531,17 +524,17 @@ const MLTrainingPage = () => {
             <div className="mb-6">
               <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
                 <div
-                  className="bg-gradient-to-r from-blue-500 to-blue-600 h-3 rounded-full transition-all duration-300"
+                  className="bg-green-600 h-3 rounded-full transition-all duration-300"
                   style={{ width: `${progress.progress}%` }}
                 />
               </div>
-              <p className="text-center mt-2 text-2xl font-bold text-blue-600">
+              <p className="text-center mt-2 text-2xl font-bold text-gray-900">
                 {progress.progress}%
               </p>
             </div>
 
             {/* Status */}
-            <div className="mb-6 p-4 bg-blue-50 rounded-lg">
+            <div className="mb-6 p-4 bg-gray-50 rounded-lg">
               <p className="text-sm text-gray-700">
                 <span className="font-semibold">Trạng thái:</span> {progress.status || 'Waiting...'}
               </p>
@@ -549,8 +542,8 @@ const MLTrainingPage = () => {
 
             {/* Error Message */}
             {progress.error && (
-              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-sm text-red-700 break-words">{progress.error}</p>
+              <div className="mb-6 p-4 bg-gray-50 border border-gray-900 rounded-lg">
+                <p className="text-sm text-gray-900 break-words">{progress.error}</p>
               </div>
             )}
 

@@ -17,6 +17,7 @@ import json
 import shutil
 from pathlib import Path
 import numpy as np
+import cv2
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
@@ -39,6 +40,48 @@ IMG_SIZE = 224
 BATCH_SIZE = 32
 EPOCHS = 5  # Retrain = fewer epochs (faster)
 TEMP_COMBINED_DIR = "combined_dataset_temp"
+
+
+def crop_to_leaf_region(image_array):
+    """Cắt vùng lá ước lượng để giảm ảnh hưởng của nền và viền ảnh."""
+
+    if image_array is None or image_array.size == 0:
+        return image_array
+
+    try:
+        image_uint8 = np.clip(image_array, 0, 255).astype(np.uint8)
+        hsv = cv2.cvtColor(image_uint8, cv2.COLOR_RGB2HSV)
+        lower_green = np.array([20, 25, 20], dtype=np.uint8)
+        upper_green = np.array([95, 255, 255], dtype=np.uint8)
+        mask = cv2.inRange(hsv, lower_green, upper_green)
+
+        kernel = np.ones((5, 5), np.uint8)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not contours:
+            return image_array
+
+        largest = max(contours, key=cv2.contourArea)
+        if cv2.contourArea(largest) < image_uint8.shape[0] * image_uint8.shape[1] * 0.03:
+            return image_array
+
+        x, y, w, h = cv2.boundingRect(largest)
+        pad = int(max(w, h) * 0.15)
+        x1 = max(x - pad, 0)
+        y1 = max(y - pad, 0)
+        x2 = min(x + w + pad, image_uint8.shape[1])
+        y2 = min(y + h + pad, image_uint8.shape[0])
+
+        cropped = image_uint8[y1:y2, x1:x2]
+        if cropped.size == 0:
+            return image_array
+
+        resized = cv2.resize(cropped, (image_uint8.shape[1], image_uint8.shape[0]), interpolation=cv2.INTER_AREA)
+        return resized.astype(image_array.dtype)
+    except Exception:
+        return image_array
 
 print("=" * 70)
 print("🔄 RETRAIN MODEL - Hybrid Training")
@@ -134,12 +177,14 @@ def create_data_generators(combined_dir):
         height_shift_range=0.2,
         horizontal_flip=True,
         zoom_range=0.2,
+        preprocessing_function=crop_to_leaf_region,
         validation_split=0.2
     )
     
     # Chỉ rescale cho validation
     val_datagen = ImageDataGenerator(
         rescale=1./255,
+        preprocessing_function=crop_to_leaf_region,
         validation_split=0.2
     )
     
@@ -370,6 +415,8 @@ def save_model_and_labels(model, train_gen, output_path):
 
 # ===== MAIN EXECUTION =====
 def main():
+    combined_dir = None
+
     try:
         # 1. Combine datasets
         combined_dir, image_count = combine_datasets()
@@ -391,7 +438,7 @@ def main():
         metrics = evaluate_classification_metrics(model, val_gen)
 
         # 4.7 Save report for backend/frontend
-        report_path = Path(MODEL_PATH).with_name('training_report.json')
+        report_path = Path(OUTPUT_MODEL_PATH).with_name('training_report.json')
         save_training_report(history, metrics, report_path)
         
         # 5. Save
@@ -409,7 +456,7 @@ def main():
     except Exception as e:
         print(f"[ERROR] {str(e)}")
         # Cleanup on error
-        if os.path.exists(combined_dir):
+        if combined_dir and os.path.exists(combined_dir):
             shutil.rmtree(combined_dir)
         sys.exit(1)
 

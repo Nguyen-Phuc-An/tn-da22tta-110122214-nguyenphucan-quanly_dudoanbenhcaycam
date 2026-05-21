@@ -41,6 +41,10 @@ const predictionSchema = new mongoose.Schema({
     type: String,
     default: '',
   },
+  thoi_gian_xu_ly_ms: {
+    type: Number,
+    default: 0,
+  },
   ngay_du_doan: {
     type: Date,
     default: Date.now,

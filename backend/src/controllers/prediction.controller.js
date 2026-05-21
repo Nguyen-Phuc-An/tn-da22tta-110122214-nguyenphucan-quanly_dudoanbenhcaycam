@@ -93,6 +93,52 @@ Yêu cầu:
   }
 };
 
+const generateAIAdviceForDisease = async (disease, confidence = null) => {
+  try {
+    if (!genAI) {
+      console.error("❌ GEMINI_API_KEY not configured");
+      return "Tư vấn AI chưa được cấu hình. Vui lòng kiểm tra GEMINI_API_KEY.";
+    }
+
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+    const allowedFertilizers = formatFertilizerNames(disease.goi_y_phan_bon);
+    const allowedPesticides = formatPesticideNames(disease.goi_y_thuoc);
+
+    const prompt = `
+Bạn là chuyên gia nông nghiệp.
+
+Bệnh được chọn:
+* Tên bệnh: ${disease.ten_benh}
+* Tên tiếng Anh: ${disease.ten_benh_en}
+* Độ tin cậy dự đoán: ${confidence !== null ? `${Math.round(confidence * 100)}%` : 'Không xác định'}
+* Mô tả: ${disease.mo_ta || 'Không có'}
+* Nguyên nhân: ${disease.nguyen_nhan || 'Không có'}
+* Hướng xử lý: ${disease.huong_xu_ly || 'Không có'}
+* Phân bón được phép đề xuất: ${allowedFertilizers.length > 0 ? allowedFertilizers.join(', ') : 'Không có'}
+* Thuốc được phép đề xuất: ${allowedPesticides.length > 0 ? allowedPesticides.join(', ') : 'Không có'}
+
+Yêu cầu:
+* Hãy tư vấn đúng theo bệnh được chọn
+* Viết ngắn gọn, dễ hiểu trong 3-5 câu
+* Không tự bịa tên phân bón hoặc thuốc
+* Chỉ nhắc đến phân bón/thuốc nếu có trong danh sách được phép đề xuất
+* Nếu không có gợi ý cụ thể thì nói rõ là chưa có gợi ý từ cơ sở dữ liệu
+    `;
+
+    const result = await model.generateContent(prompt);
+    console.log("✓ Gemini disease advice generated successfully");
+    return result.response.text();
+  } catch (error) {
+    console.error("❌ Lỗi Gemini theo bệnh:", {
+      message: error.message,
+      code: error.code,
+      status: error.status
+    });
+    return "Không thể tạo tư vấn AI lúc này. Vui lòng thử lại sau.";
+  }
+};
+
 /**
  * Upload ảnh và gọi API ML để dự đoán bệnh
  * 
@@ -110,6 +156,7 @@ Yêu cầu:
  */
 const uploadPrediction = async (req, res) => {
   try {
+    const predictStartedAt = Date.now();
     const { garden_id } = req.body;
 
     // ✓ Kiểm tra upload file
@@ -162,6 +209,9 @@ const uploadPrediction = async (req, res) => {
       });
     } catch (mlError) {
       console.error(`❌ Lỗi gọi ML API:`, mlError.message);
+      if (mlError.response?.data) {
+        console.error('❌ ML API response:', mlError.response.data);
+      }
       
       // Xóa file nếu ML API lỗi
       fs.unlink(req.file.path, (err) => {
@@ -170,7 +220,7 @@ const uploadPrediction = async (req, res) => {
       
       return res.status(500).json({
         success: false,
-        message: 'Không thể kết nối AI. Vui lòng thử lại sau.',
+        message: mlError.response?.data?.error || mlError.response?.data?.message || 'Không thể kết nối AI. Vui lòng thử lại sau.',
         error: mlError.message,
       });
     }
@@ -267,6 +317,7 @@ const uploadPrediction = async (req, res) => {
       huong_xu_ly: mainDisease.huong_xu_ly || 'Cần tư vấn chuyên gia',
       tuvan_ai: advice,  // Lưu tư vấn AI
       grad_cam_path: gradCamPath,
+      thoi_gian_xu_ly_ms: Date.now() - predictStartedAt,
       ngay_du_doan: new Date(),
     });
 
@@ -391,6 +442,48 @@ const getPredictionById = async (req, res) => {
   }
 };
 
+const getAdviceForSelectedDisease = async (req, res) => {
+  try {
+    const { disease_en, confidence } = req.body;
+
+    if (!disease_en || !String(disease_en).trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng chọn 1 bệnh để nhận tư vấn',
+      });
+    }
+
+    const disease = await Disease.findOne({ ten_benh_en: String(disease_en).trim() })
+      .populate('goi_y_phan_bon', 'ten_phan_bon thanh_phan cong_dung')
+      .populate('goi_y_thuoc', 'ten_thuoc loai hoat_chat cach_su_dung muc_do_doc_hai');
+
+    if (!disease) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy thông tin bệnh để tư vấn',
+      });
+    }
+
+    const advice = await generateAIAdviceForDisease(disease, confidence);
+
+    return res.json({
+      success: true,
+      data: {
+        disease_en: disease.ten_benh_en,
+        disease_vi: disease.ten_benh,
+        advice,
+      },
+    });
+  } catch (error) {
+    console.error('❌ Lỗi lấy tư vấn theo bệnh:', error.message);
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi hệ thống',
+      error: error.message,
+    });
+  }
+};
+
 // Xóa dự đoán
 const deletePrediction = async (req, res) => {
   try {
@@ -505,6 +598,7 @@ module.exports = {
   uploadPrediction,
   getPredictionsByUser,
   getPredictionById,
+  getAdviceForSelectedDisease,
   deletePrediction,
   getAllPredictions,
 };

@@ -43,11 +43,12 @@ const createLog = async (req, res) => {
       });
     }
 
-    // Kiểm tra mùa vụ thuộc vườn này
-    if (season.garden_id.toString() !== garden_id) {
+    // Mùa vụ phải khớp với mùa hiện tại của vườn để tránh lệch dữ liệu
+    const currentSeasonId = garden.season_id?._id || garden.season_id;
+    if (currentSeasonId && String(season._id) !== String(currentSeasonId)) {
       return res.status(400).json({
         success: false,
-        message: 'Mùa vụ không thuộc vườn này',
+        message: 'Mùa vụ không khớp với mùa vụ hiện tại của vườn',
       });
     }
 

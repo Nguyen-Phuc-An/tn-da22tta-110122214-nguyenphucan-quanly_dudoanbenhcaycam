@@ -17,7 +17,7 @@ from predict import load_model_and_labels, predict
 
 UPLOAD_FOLDER = "uploads"
 GRADCAM_FOLDER = os.path.join(UPLOAD_FOLDER, "gradcam")
-ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "gif", "bmp"}
+ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "gif", "bmp", "webp", "heic", "heif"}
 MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
 
 # Tạo app
@@ -117,9 +117,11 @@ def predict_disease():
     
     # Kiểm tra request
     if 'image' not in request.files:
+        print(f"❌ Missing file field. Keys: {list(request.files.keys())}")
         return jsonify({"error": "❌ Không có file 'image'"}), 400
     
     file = request.files['image']
+    print(f"📎 Received file: name={file.filename}, mimetype={file.mimetype}")
     
     if file.filename == '':
         return jsonify({"error": "❌ Chưa chọn file"}), 400
@@ -129,31 +131,40 @@ def predict_disease():
             "error": f"❌ Định dạng không hỗ trợ. Chỉ chấp nhận: {', '.join(ALLOWED_EXTENSIONS)}"
         }), 400
     
+    filepath = None
+
     try:
         # Lưu file
         filename = secure_filename(file.filename)
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
-        
+
         # Dự đoán
         result = predict(filepath, model, labels)
-        
-        # Xóa file sau khi xong
-        try:
-            os.remove(filepath)
-        except:
-            pass
-        
         return jsonify({
             "success": True,
             "data": result
         })
-    
+
+    except ValueError as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 400
+
     except Exception as e:
+        print(f"❌ Lỗi dự đoán chi tiết: {e}")
         return jsonify({
             "success": False,
             "error": f"❌ Lỗi dự đoán: {str(e)}"
         }), 500
+
+    finally:
+        if filepath and os.path.exists(filepath):
+            try:
+                os.remove(filepath)
+            except Exception as remove_error:
+                print(f"⚠️ Không xóa được file tạm: {remove_error}")
 
 
 @app.route("/reload-model", methods=["POST"])
