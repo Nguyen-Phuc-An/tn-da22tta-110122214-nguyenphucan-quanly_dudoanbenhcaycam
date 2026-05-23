@@ -8,7 +8,6 @@ import { useForm } from 'react-hook-form';
 const GardensPage = () => {
   const [gardens, setGardens] = useState([]);
   const [users, setUsers] = useState([]);
-  const [seasons, setSeasons] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -19,7 +18,6 @@ const GardensPage = () => {
   useEffect(() => {
     fetchGardens();
     fetchUsers();
-    fetchSeasons();
   }, []);
 
   const fetchGardens = async () => {
@@ -44,19 +42,6 @@ const GardensPage = () => {
     } catch (err) {
       console.error('❌ Error fetching users:', err);
       toast.error('Không thể tải danh sách người dùng');
-    }
-  };
-
-  const fetchSeasons = async () => {
-    try {
-      const res = await apiClient.get('/seasons/admin/all');
-      console.log('✓ Seasons loaded:', res.data.data?.length || 0);
-      // Only show active seasons (Đang diễn ra)
-      const activeSeasons = (res.data.data || []).filter(s => s.trang_thai === 'Đang diễn ra');
-      setSeasons(activeSeasons);
-    } catch (err) {
-      console.error('❌ Error fetching seasons:', err);
-      toast.error('Không thể tải danh sách mùa vụ');
     }
   };
 
@@ -172,38 +157,6 @@ const GardensPage = () => {
                     {users.map((user) => (
                       <option key={user._id} value={user._id}>
                         {user.ho_ten} ({user.email})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Loại Cây
-                  </label>
-                  <select
-                    {...register('loai_cay', { required: 'Bắt buộc' })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                  >
-                    <option value="">Chọn loại cây</option>
-                    <option value="Cam">Cam (Orange)</option>
-                    <option value="Chanh">Chanh (Lemon)</option>
-                    <option value="Bưởi">Bưởi (Pomelo)</option>
-                    <option value="Khác">Khác (Khác)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Mùa Vụ (Tùy Chọn)
-                  </label>
-                  <select
-                    {...register('season_id')}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                  >
-                    <option value="">Không có mùa vụ</option>
-                    {seasons.map((season) => (
-                      <option key={season._id} value={season._id}>
-                        {season.ten_mua_vu} ({season.nam})
                       </option>
                     ))}
                   </select>

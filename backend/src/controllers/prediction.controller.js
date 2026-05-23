@@ -157,8 +157,6 @@ Yêu cầu:
 const uploadPrediction = async (req, res) => {
   try {
     const predictStartedAt = Date.now();
-    const { garden_id } = req.body;
-
     // ✓ Kiểm tra upload file
     if (!req.file) {
       return res.status(400).json({
@@ -167,32 +165,7 @@ const uploadPrediction = async (req, res) => {
       });
     }
 
-    // ✓ Kiểm tra vườn tồn tại
-    const garden = await Garden.findById(garden_id);
-    if (!garden) {
-      // Xóa file nếu vườn không tồn tại
-      fs.unlink(req.file.path, (err) => {
-        if (err) console.error('Lỗi xóa file:', err);
-      });
-      
-      return res.status(404).json({
-        success: false,
-        message: 'Vườn không tồn tại',
-      });
-    }
-
-    // ✓ Kiểm tra quyền
-    if (garden.user_id.toString() !== req.userId) {
-      // Xóa file nếu không có quyền
-      fs.unlink(req.file.path, (err) => {
-        if (err) console.error('Lỗi xóa file:', err);
-      });
-      
-      return res.status(403).json({
-        success: false,
-        message: 'Bạn không có quyền dự đoán cho vườn này',
-      });
-    }
+    // NOTE: garden_id removed - prediction is tied to user only
 
     console.log(`\n📤 Gửi ảnh sang ML API: ${ML_API_URL}`);
 
@@ -309,7 +282,6 @@ const uploadPrediction = async (req, res) => {
     // ✓ 6. Tạo prediction trong database (lưu bệnh chính + tư vấn)
     const prediction = new Prediction({
       user_id: req.userId,
-      garden_id,
       hinh_anh,
       ket_qua_benh: mainDisease.ten_benh,  // Tên bệnh tiếng Việt từ bệnh chính
       do_tin_cay: Math.round(mainPrediction.confidence * 100),  // Convert 0-1 → 0-100
@@ -377,9 +349,8 @@ const uploadPrediction = async (req, res) => {
 // Lấy danh sách dự đoán của user
 const getPredictionsByUser = async (req, res) => {
   try {
-    const predictions = await Prediction.find({ user_id: req.userId })
-      .populate('garden_id', 'ten_vuon')
-      .sort({ ngay_du_doan: -1 });
+      const predictions = await Prediction.find({ user_id: req.userId })
+        .sort({ ngay_du_doan: -1 });
 
     console.log('✓ Lấy danh sách dự đoán:', predictions.length);
 
@@ -400,10 +371,7 @@ const getPredictionsByUser = async (req, res) => {
 // Lấy chi tiết 1 dự đoán
 const getPredictionById = async (req, res) => {
   try {
-    const prediction = await Prediction.findById(req.params.id).populate(
-      'garden_id',
-      'ten_vuon'
-    );
+    const prediction = await Prediction.findById(req.params.id);
 
     if (!prediction) {
       return res.status(404).json({
@@ -560,7 +528,6 @@ const getAllPredictions = async (req, res) => {
     // Lấy tất cả predictions, populate user và garden info
     const predictions = await Prediction.find()
       .populate('user_id', 'ho_ten email vai_tro')
-      .populate('garden_id', 'ten_vuon dien_tich')
       .sort({ ngay_du_doan: -1 })
       .limit(100);
 

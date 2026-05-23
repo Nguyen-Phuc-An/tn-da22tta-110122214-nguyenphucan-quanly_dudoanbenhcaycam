@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { FaPlus, FaEdit, FaTrash, FaCheck, FaTimes } from 'react-icons/fa';
@@ -10,17 +10,20 @@ const LogsPage = () => {
   const location = useLocation();
   const [logs, setLogs] = useState([]);
   const [gardens, setGardens] = useState([]);
-  const [seasons, setSeasons] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
-  const [selectedLog, setSelectedLog] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [plotOptions, setPlotOptions] = useState([]);
+  const [selectedPlotId, setSelectedPlotId] = useState('');
+  const [editingGardenId, setEditingGardenId] = useState(null);
+  const [selectedLog, setSelectedLog] = useState(null);
+  const detailCloseTimerRef = useRef(null);
   const ITEMS_PER_PAGE = 10;
-  const { register, handleSubmit, reset, watch, setValue } = useForm();
+  const { register, handleSubmit, reset, watch } = useForm();
 
   const selectedGarden = watch('garden_id');
 
@@ -29,32 +32,41 @@ const LogsPage = () => {
     return today.toISOString().split('T')[0];
   };
 
-  // Auto-open form if accessing /new route
   useEffect(() => {
     if (location.pathname === '/user/logs/new') {
       setShowForm(true);
     }
   }, [location.pathname]);
 
-  // Auto-set season when garden is selected in create mode
   useEffect(() => {
-    if (editingId) {
-      return;
-    }
+    const fetchPlots = async () => {
+      if (!selectedGarden) {
+        setPlotOptions([]);
+        setSelectedPlotId('');
+        return;
+      }
 
-    if (!selectedGarden) {
-      setValue('season_id', '');
-      return;
-    }
+      try {
+        const res = await apiClient.get(`/plots/garden/${selectedGarden}`);
+        const plots = res.data.data || [];
+        setPlotOptions(plots);
 
-    const currentGarden = gardens.find((garden) => garden._id === selectedGarden);
-    const currentSeasonId = currentGarden?.season_id?._id || currentGarden?.season_id || '';
+        const plotIds = plots.map((plot) => plot._id);
+        if (editingId && editingGardenId && String(editingGardenId) === String(selectedGarden)) {
+          setSelectedPlotId((current) => (plotIds.includes(current) ? current : plotIds[0] || ''));
+          return;
+        }
 
-    setValue('season_id', currentSeasonId, {
-      shouldDirty: true,
-      shouldValidate: true,
-    });
-  }, [selectedGarden, gardens, editingId, setValue]);
+        setSelectedPlotId(plotIds[0] || '');
+      } catch (error) {
+        console.error('❌ Error fetching plots:', error);
+        setPlotOptions([]);
+        setSelectedPlotId('');
+      }
+    };
+
+    fetchPlots();
+  }, [selectedGarden, editingId, editingGardenId]);
 
   useEffect(() => {
     fetchData();
@@ -63,44 +75,26 @@ const LogsPage = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      
-      // Lấy vườn của user
+
       const gardensRes = await apiClient.get('/gardens');
       const gardensData = gardensRes.data.data || [];
       setGardens(gardensData);
-      console.log('🌳 Gardens:', gardensData.map(g => ({ _id: g._id, ten_vuon: g.ten_vuon })));
 
-      // Lấy logs từ từng vườn
       let allLogs = [];
       if (gardensData.length > 0) {
-        const logPromises = gardensData.map(garden =>
-          apiClient.get(`/logs/garden/${garden._id}`).catch(err => {
+        const logPromises = gardensData.map((garden) =>
+          apiClient.get(`/logs/garden/${garden._id}`).catch((err) => {
             console.warn(`⚠️ Error fetching logs for garden ${garden._id}:`, err.message);
             return { data: { data: [] } };
           })
         );
         const logResponses = await Promise.all(logPromises);
-        allLogs = logResponses.flatMap(res => res.data.data || []);
-        
-        console.log('📝 All logs fetched:', allLogs.length);
-        console.log('Sample logs:', allLogs.slice(0, 2).map(l => ({
-          _id: l._id,
-          garden_id: l.garden_id,
-          garden_name: l.garden_id?.ten_vuon || 'N/A',
-          task: l.task_id?.ten_cong_viec
-        })));
+        allLogs = logResponses.flatMap((res) => res.data.data || []);
       }
 
-      // Lấy seasons
-      const seasonsRes = await apiClient.get('/seasons');
-      setSeasons(seasonsRes.data.data || []);
-
-      // Lấy tasks
       const tasksRes = await apiClient.get('/tasks');
       setTasks(tasksRes.data.data || []);
-
       setLogs(allLogs);
-      console.log('✓ Logs loaded:', allLogs.length);
     } catch (error) {
       console.error('❌ Error fetching data:', error);
       toast.error('Không thể tải dữ liệu');
@@ -111,18 +105,28 @@ const LogsPage = () => {
 
   const onSubmit = async (data) => {
     try {
-      if (editingId) {
-        await apiClient.put(`/logs/${editingId}`, data);
-        console.log('✓ Log updated:', editingId);
-        toast.success('Nhật ký được cập nhật thành công');
-        await fetchData();
-      } else {
-        const res = await apiClient.post('/logs', data);
-        console.log('✓ Log created:', res.data.data);
-        toast.success('Nhật ký được tạo thành công');
-        await fetchData();
+      const submitData = {
+        ...data,
+        plot_id: selectedPlotId,
+      };
+
+      if (!submitData.plot_id) {
+        toast.error('Vui lòng chọn mẫu đất');
+        return;
       }
+
+      if (editingId) {
+        await apiClient.put(`/logs/${editingId}`, submitData);
+        toast.success('Nhật ký được cập nhật thành công');
+      } else {
+        await apiClient.post('/logs', submitData);
+        toast.success('Nhật ký được tạo thành công');
+      }
+
+      await fetchData();
       reset();
+      setSelectedPlotId('');
+      setEditingGardenId(null);
       setShowForm(false);
       setEditingId(null);
     } catch (err) {
@@ -136,20 +140,21 @@ const LogsPage = () => {
     const logData = {
       ...log,
       garden_id: log.garden_id?._id || log.garden_id,
-      season_id: log.season_id?._id || log.season_id,
       task_id: log.task_id?._id || log.task_id,
+      plot_id: log.plot_id?._id || log.plot_id || (log.plot_ids || []).map((plot) => plot._id || plot)[0] || '',
       ngay_lam: new Date(log.ngay_lam).toISOString().split('T')[0],
     };
     reset(logData);
+    setSelectedPlotId(logData.plot_id || '');
+    setEditingGardenId(logData.garden_id);
     setShowForm(true);
   };
 
   const handleDeleteLog = async (logId) => {
     try {
       await apiClient.delete(`/logs/${logId}`);
-      console.log('✓ Log deleted:', logId);
       toast.success('Nhật ký được xóa thành công');
-      setLogs(logs.filter((l) => l._id !== logId));
+      setLogs((currentLogs) => currentLogs.filter((log) => log._id !== logId));
       setShowDeleteConfirm(null);
     } catch (err) {
       console.error('❌ Error deleting log:', err);
@@ -157,23 +162,91 @@ const LogsPage = () => {
     }
   };
 
+  const openLogDetail = (log) => {
+    if (detailCloseTimerRef.current) {
+      clearTimeout(detailCloseTimerRef.current);
+      detailCloseTimerRef.current = null;
+    }
+
+    setSelectedLog(log);
+  };
+
+  const closeLogDetail = () => {
+    if (detailCloseTimerRef.current) {
+      clearTimeout(detailCloseTimerRef.current);
+      detailCloseTimerRef.current = null;
+    }
+
+    setSelectedLog(null);
+  };
+
+  const scheduleCloseLogDetail = () => {
+    if (detailCloseTimerRef.current) {
+      clearTimeout(detailCloseTimerRef.current);
+    }
+
+    detailCloseTimerRef.current = setTimeout(() => {
+      setSelectedLog(null);
+      detailCloseTimerRef.current = null;
+    }, 250);
+  };
+
+  const handleToggleCompleted = async (log) => {
+    try {
+      const nextCompleted = !Boolean(log.is_completed);
+      const payload = {
+        garden_id: log.garden_id?._id || log.garden_id,
+        task_id: log.task_id?._id || log.task_id,
+        plot_id: log.plot_id?._id || log.plot_id,
+        ngay_lam: new Date(log.ngay_lam).toISOString().split('T')[0],
+        ghi_chu: log.ghi_chu || '',
+        nguoi_thuc_hien: log.nguoi_thuc_hien || '',
+        is_completed: nextCompleted,
+      };
+
+      await apiClient.put(`/logs/${log._id}`, payload);
+      setLogs((currentLogs) =>
+        currentLogs.map((item) => (item._id === log._id ? { ...item, is_completed: nextCompleted } : item))
+      );
+      toast.success(nextCompleted ? 'Đã đánh dấu hoàn thành' : 'Đã bỏ đánh dấu hoàn thành');
+    } catch (err) {
+      console.error('❌ Error toggling log completion:', err);
+      toast.error(err.response?.data?.message || 'Không thể cập nhật trạng thái');
+    }
+  };
+
   const filteredLogs = useMemo(() => {
     let result = logs;
-    
+
     if (searchTerm) {
-      result = result.filter(log =>
-        log.garden_id?.ten_vuon?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        log.task_id?.ten_cong_viec?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        log.nguoi_thuc_hien?.toLowerCase().includes(searchTerm.toLowerCase())
+      const query = searchTerm.toLowerCase();
+      result = result.filter((log) =>
+        log.garden_id?.ten_vuon?.toLowerCase().includes(query) ||
+        log.task_id?.ten_cong_viec?.toLowerCase().includes(query) ||
+        log.nguoi_thuc_hien?.toLowerCase().includes(query) ||
+        log.plot_id?.name?.toLowerCase().includes(query)
       );
     }
 
-    return result;
+    // Sort so that unfinished (is_completed false) come first,
+    // then order by date (newest first). If date is equal, sort by garden name.
+    const sorted = result.slice().sort((a, b) => {
+      const aDone = Boolean(a.is_completed);
+      const bDone = Boolean(b.is_completed);
+      if (aDone !== bDone) return aDone ? 1 : -1; // unfinished first
+
+      const aTime = a.ngay_lam ? new Date(a.ngay_lam).getTime() : 0;
+      const bTime = b.ngay_lam ? new Date(b.ngay_lam).getTime() : 0;
+      if (aTime !== bTime) return bTime - aTime; // newest first
+
+      const aGarden = (a.garden_id?.ten_vuon || '').toLowerCase();
+      const bGarden = (b.garden_id?.ten_vuon || '').toLowerCase();
+      return aGarden.localeCompare(bGarden, 'vi');
+    });
+
+    return sorted;
   }, [logs, searchTerm]);
 
-  const filteredSeasons = seasons;
-
-  // Pagination logic
   const totalPages = Math.ceil(filteredLogs.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const endIndex = startIndex + ITEMS_PER_PAGE;
@@ -181,19 +254,19 @@ const LogsPage = () => {
 
   const handlePageChange = (page) => {
     setCurrentPage(page);
-    setSelectedLog(null);
   };
 
   return (
     <UserLayout>
       <div>
-        {/* Header */}
         <div className="mb-6 flex justify-between items-center">
           <h1 className="text-3xl font-bold text-gray-900">Nhật Ký Canh Tác</h1>
           <button
             onClick={() => {
               setEditingId(null);
-              reset({ ngay_lam: getTodayDateString() });
+              reset({ ngay_lam: getTodayDateString(), is_completed: false });
+              setSelectedPlotId('');
+              setEditingGardenId(null);
               setShowForm(!showForm);
             }}
             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center gap-2"
@@ -202,15 +275,18 @@ const LogsPage = () => {
           </button>
         </div>
 
-        {/* Form */}
         {showForm && (
           <div className="bg-white rounded-lg shadow p-6 mb-6">
             <h2 className="text-xl font-bold text-gray-900 mb-4">
-              {editingId ? <><FaEdit className="inline mr-2" /> Sửa Nhật Ký</> : <><FaPlus className="inline mr-2" /> Tạo Nhật Ký Mới</>}
+              {editingId ? (
+                <><FaEdit className="inline mr-2" /> Sửa Nhật Ký</>
+              ) : (
+                <><FaPlus className="inline mr-2" /> Tạo Nhật Ký Mới</>
+              )}
             </h2>
 
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Vườn <span className="text-red-600">*</span>
@@ -223,23 +299,6 @@ const LogsPage = () => {
                     {gardens.map((garden) => (
                       <option key={garden._id} value={garden._id}>
                         {garden.ten_vuon}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Mùa Vụ <span className="text-red-600">*</span>
-                  </label>
-                  <select
-                    {...register('season_id', { required: 'Bắt buộc' })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                  >
-                    <option value="">Chọn mùa vụ</option>
-                    {filteredSeasons.map((season) => (
-                      <option key={season._id} value={season._id}>
-                        {season.ten_mua_vu} ({season.nam})
                       </option>
                     ))}
                   </select>
@@ -262,6 +321,34 @@ const LogsPage = () => {
                   </select>
                 </div>
 
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Mẫu Đất <span className="text-red-600">*</span>
+                  </label>
+                  {!selectedGarden ? (
+                    <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-500">
+                      Hãy chọn vườn trước để hiển thị danh sách mẫu đất.
+                    </div>
+                  ) : plotOptions.length > 0 ? (
+                    <select
+                      value={selectedPlotId}
+                      onChange={(e) => setSelectedPlotId(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
+                    >
+                      <option value="">Chọn mẫu đất</option>
+                      {plotOptions.map((plot) => (
+                        <option key={plot._id} value={plot._id}>
+                          {plot.name} ({Number(plot.area || 0).toFixed(1)} m²)
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-500">
+                      Vườn này chưa có mẫu đất nào.
+                    </div>
+                  )}
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Ngày Làm <span className="text-red-600">*</span>
@@ -274,9 +361,7 @@ const LogsPage = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Người Thực Hiện
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Người Thực Hiện</label>
                   <input
                     type="text"
                     {...register('nguoi_thuc_hien')}
@@ -287,9 +372,7 @@ const LogsPage = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Ghi Chú
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ghi Chú</label>
                 <textarea
                   {...register('ghi_chu')}
                   placeholder="Ghi chú về công việc..."
@@ -310,6 +393,8 @@ const LogsPage = () => {
                   onClick={() => {
                     setShowForm(false);
                     reset();
+                    setSelectedPlotId('');
+                    setEditingGardenId(null);
                     setEditingId(null);
                   }}
                   className="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition flex items-center justify-center gap-2"
@@ -321,188 +406,147 @@ const LogsPage = () => {
           </div>
         )}
 
-        {/* Search */}
         <div className="mb-6">
           <input
             type="text"
-            placeholder="Tìm kiếm theo vườn, công việc hoặc người thực hiện..."
+            placeholder="Tìm kiếm theo vườn, công việc, mẫu đất hoặc người thực hiện..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
           />
         </div>
 
-        {/* Table with Details Panel */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Logs List */}
-          <div className="lg:col-span-2">
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              {loading ? (
-                <div className="p-8 text-center text-gray-600">Đang tải nhật ký...</div>
-              ) : filteredLogs.length === 0 ? (
-                <div className="p-8 text-center text-gray-600">
-                  {logs.length === 0 ? (
-                    <>
-                      <p className="mb-4">📝 Chưa có nhật ký nào</p>
-                      <button
-                        onClick={() => {
-                          setEditingId(null);
-                          reset();
-                          setShowForm(true);
-                        }}
-                        className="text-green-600 font-semibold hover:text-green-700"
-                      >
-                        Tạo nhật ký đầu tiên →
-                      </button>
-                    </>
-                  ) : (
-                    <p>Không tìm thấy nhật ký phù hợp</p>
-                  )}
-                </div>
-              ) : (
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">
-                        Vườn
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">
-                        Mùa Vụ
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">
-                        Công Việc
-                      </th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase">
-                        Ngày Làm
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">
-                        Người Thực Hiện
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {paginatedLogs.map((log) => (
-                      <tr
-                        key={log._id}
-                        onClick={() => setSelectedLog(log)}
-                        className={`cursor-pointer transition ${
-                          selectedLog?._id === log._id
-                            ? 'bg-green-100 hover:bg-green-150'
-                            : 'hover:bg-gray-50'
-                        }`}
-                      >
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-gray-900">{log.garden_id?.ten_vuon}</span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-gray-900">{log.season_id?.ten_mua_vu}</span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-gray-900 font-medium">{log.task_id?.ten_cong_viec}</span>
-                        </td>
-                        <td className="px-6 py-4 text-center whitespace-nowrap">
-                          <span className="text-gray-600 text-sm">
-                            {new Date(log.ngay_lam).toLocaleDateString('vi-VN')}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-gray-900">{log.nguoi_thuc_hien || '—'}</span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-
-                {/* Pagination */}
-                {totalPages > 1 && (
-                  <div className="bg-gray-50 px-6 py-4 border-t flex items-center justify-between">
-                    <div className="text-sm text-gray-600">
-                      Trang <span className="font-semibold">{currentPage}</span> / <span className="font-semibold">{totalPages}</span> 
-                      ({filteredLogs.length} nhật ký)
-                    </div>
-                    <div className="flex gap-1">
-                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                        <button
-                          key={page}
-                          onClick={() => handlePageChange(page)}
-                          className={`px-3 py-1 rounded text-sm font-medium transition ${
-                            currentPage === page
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-100'
-                          }`}
-                        >
-                          {page}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-            </div>
-          </div>
-
-          {/* Details Panel */}
-          <div>
-            {selectedLog ? (
-              <div className="bg-white rounded-lg shadow p-6 sticky top-6 flex flex-col max-h-[800px]">
-                <h3 className="text-lg font-bold text-gray-900 mb-4 flex-shrink-0">Chi Tiết Mô Tả</h3>
-
-                <div className="space-y-4 flex-1 overflow-y-auto pr-2">
-                  {/* Ghi Chú */}
-                  {selectedLog.ghi_chu ? (
-                    <div>
-                      <p className="text-xs text-gray-600 uppercase mb-2 font-semibold">Mô Tả</p>
-                      <p className="text-sm text-gray-800 bg-blue-50 rounded p-4 border-l-4 border-blue-500 whitespace-pre-wrap">
-                        {selectedLog.ghi_chu}
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="text-center text-gray-500 py-8">
-                      <p>Không có mô tả</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Action Buttons */}
-                <div className="space-y-2 border-t pt-4 flex-shrink-0 mt-4">
-                  <button
-                    onClick={() => handleEdit(selectedLog)}
-                    className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center justify-center gap-2"
-                  >
-                    <FaEdit /> Sửa
-                  </button>
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          {loading ? (
+            <div className="p-8 text-center text-gray-600">Đang tải nhật ký...</div>
+          ) : filteredLogs.length === 0 ? (
+            <div className="p-8 text-center text-gray-600">
+              {logs.length === 0 ? (
+                <>
+                  <p className="mb-4">📝 Chưa có nhật ký nào</p>
                   <button
                     onClick={() => {
-                      setShowDeleteConfirm(selectedLog._id);
-                      setSelectedLog(null);
+                      setEditingId(null);
+                      reset();
+                      setShowForm(true);
                     }}
-                    className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition flex items-center justify-center gap-2"
+                    className="text-green-600 font-semibold hover:text-green-700"
                   >
-                    <FaTrash /> Xóa
+                    Tạo nhật ký đầu tiên →
                   </button>
+                </>
+              ) : (
+                <p>Không tìm thấy nhật ký phù hợp</p>
+              )}
+            </div>
+          ) : (
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Vườn</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Tên mẫu đất</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Công Việc</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Người Thực Hiện</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase">Ngày Làm</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase">Trạng Thái</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase">Thao Tác</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {paginatedLogs.map((log) => (
+                  <tr
+                    key={log._id}
+                    className="hover:bg-gray-50 transition cursor-pointer"
+                    onMouseEnter={() => openLogDetail(log)}
+                    onMouseLeave={scheduleCloseLogDetail}
+                  >
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="text-gray-900">{log.garden_id?.ten_vuon}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="text-gray-900">{log.plot_id?.name || log.plot_ids?.[0]?.name || '—'}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="text-gray-900 font-medium">{log.task_id?.ten_cong_viec}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="text-gray-900">{log.nguoi_thuc_hien || '—'}</span>
+                    </td>
+                    <td className="px-6 py-4 text-center whitespace-nowrap">
+                      <span className="text-gray-600 text-sm">{new Date(log.ngay_lam).toLocaleDateString('vi-VN')}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleCompleted(log)}
+                        onKeyDown={(e) => e.stopPropagation()}
+                        className="inline-flex items-center gap-2"
+                        title={log.is_completed ? 'Bỏ hoàn thành' : 'Đánh dấu hoàn thành'}
+                        onMouseDown={(e) => e.stopPropagation()}
+                      >
+                        <span
+                          className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold ${
+                            log.is_completed ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'
+                          }`}
+                        >
+                          {log.is_completed ? 'Đã' : 'Chưa'}
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(log.is_completed)}
+                          readOnly
+                          className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer"
+                        />
+                      </button>
+                    </td>
+                    <td className="px-6 py-4 text-center whitespace-nowrap space-x-2" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => handleEdit(log)}
+                        className="px-3 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition text-sm"
+                      >
+                        <FaEdit className="inline mr-1" /> Sửa
+                      </button>
+                      <button
+                        onClick={() => setShowDeleteConfirm(log._id)}
+                        className="px-3 py-1 bg-red-50 text-red-600 rounded hover:bg-red-100 transition text-sm"
+                      >
+                        <FaTrash className="inline mr-1" /> Xóa
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {totalPages > 1 && (
+            <div className="bg-gray-50 px-6 py-4 border-t flex items-center justify-between">
+              <div className="text-sm text-gray-600">
+                Trang <span className="font-semibold">{currentPage}</span> / <span className="font-semibold">{totalPages}</span> ({filteredLogs.length} nhật ký)
+              </div>
+              <div className="flex gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                   <button
-                    onClick={() => setSelectedLog(null)}
-                    className="w-full px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition flex items-center justify-center gap-2"
+                    key={page}
+                    onClick={() => handlePageChange(page)}
+                    className={`px-3 py-1 rounded text-sm font-medium transition ${
+                      currentPage === page
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-100'
+                    }`}
                   >
-                    <FaTimes /> Đóng
+                    {page}
                   </button>
-                </div>
+                ))}
               </div>
-            ) : (
-              <div className="bg-white rounded-lg shadow p-6 text-center text-gray-600 sticky top-6">
-                👈 Chọn một nhật ký để xem chi tiết
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
-        {/* Delete Confirmation Modal */}
         {showDeleteConfirm && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-6 max-w-sm">
-              <h3 className="text-lg font-bold text-gray-900 mb-4">
-                Xác Nhận Xóa
-              </h3>
+              <h3 className="text-lg font-bold text-gray-900 mb-4">Xác Nhận Xóa</h3>
               <p className="text-gray-600 mb-6">
                 Bạn có chắc chắn muốn xóa nhật ký này không? Hành động này không thể hoàn tác.
               </p>
@@ -520,6 +564,26 @@ const LogsPage = () => {
                   Xóa
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {selectedLog && (
+          <div
+            className="fixed z-50"
+            style={{ top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
+            onMouseEnter={() => {
+              if (detailCloseTimerRef.current) {
+                clearTimeout(detailCloseTimerRef.current);
+                detailCloseTimerRef.current = null;
+              }
+            }}
+            onMouseLeave={scheduleCloseLogDetail}
+          >
+            <div className="relative z-10 max-w-xl rounded-lg bg-white p-4 shadow-2xl border-2 border-green-200">
+              <p className="text-sm text-gray-900 whitespace-pre-wrap">
+                {selectedLog.ghi_chu?.trim() ? selectedLog.ghi_chu : 'Không có ghi chú.'}
+              </p>
             </div>
           </div>
         )}

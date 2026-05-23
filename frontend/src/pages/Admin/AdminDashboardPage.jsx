@@ -71,14 +71,22 @@ const quickActions = [
 ];
 
 const groupByDay = (predictions) => {
+  // Group by ISO date (YYYY-MM-DD) to ensure correct chronological ordering
   const buckets = new Map();
 
   predictions.forEach((item) => {
-    const key = new Date(item.ngay_du_doan).toLocaleDateString('vi-VN');
-    buckets.set(key, (buckets.get(key) || 0) + 1);
+    if (!item || !item.ngay_du_doan) return;
+    const iso = new Date(item.ngay_du_doan).toISOString().slice(0, 10);
+    const display = new Date(item.ngay_du_doan).toLocaleDateString('vi-VN');
+    const existing = buckets.get(iso) || { date: display, count: 0 };
+    existing.count += 1;
+    buckets.set(iso, existing);
   });
 
-  return Array.from(buckets.entries()).map(([date, count]) => ({ date, count }));
+  return Array.from(buckets.entries())
+    .map(([iso, obj]) => ({ iso, date: obj.date, count: obj.count }))
+    .sort((a, b) => a.iso.localeCompare(b.iso))
+    .map(({ date, count }) => ({ date, count }));
 };
 
 const groupByDisease = (predictions) => {
@@ -120,6 +128,8 @@ const AdminDashboardPage = () => {
   const [apiLatency, setApiLatency] = useState({ users: 0, gardens: 0, diseases: 0, predictions: 0, mlStatus: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [recentPage, setRecentPage] = useState(1);
+  const RECENT_PAGE_SIZE = 10;
 
   useEffect(() => {
     const fetchDashboard = async () => {
@@ -190,17 +200,18 @@ const AdminDashboardPage = () => {
       ? predictions.reduce((sum, item) => sum + Number(item.thoi_gian_xu_ly_ms || 0), 0) / totalPredictions
       : 0;
 
-    return {
-      totalPredictions,
-      avgConfidence,
-      lowConfidenceCount,
-      lowConfidenceRate: totalPredictions ? (lowConfidenceCount / totalPredictions) * 100 : 0,
-      avgProcessingTime,
-      byDay: groupByDay(predictions),
-      byDisease: groupByDisease(predictions),
-      confidenceBuckets: buildConfidenceBuckets(predictions),
-      recentPredictions: predictions.slice(0, 10),
-    };
+      return {
+        totalPredictions,
+        avgConfidence,
+        lowConfidenceCount,
+        lowConfidenceRate: totalPredictions ? (lowConfidenceCount / totalPredictions) * 100 : 0,
+        avgProcessingTime,
+        byDay: groupByDay(predictions),
+        byDisease: groupByDisease(predictions),
+        confidenceBuckets: buildConfidenceBuckets(predictions),
+        // sort predictions newest first for listing; pagination will handle slicing
+        recentPredictions: predictions.slice().sort((a, b) => new Date(b.ngay_du_doan) - new Date(a.ngay_du_doan)),
+      };
   }, [predictions]);
 
   const summary = mlStatus?.summary || {};
@@ -424,7 +435,7 @@ const AdminDashboardPage = () => {
             <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">low confidence: {dashboard.lowConfidenceCount}</div>
           </div>
 
-          <div className="overflow-x-auto">
+            <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-200 text-sm">
               <thead className="bg-slate-50 text-slate-600">
                 <tr>
@@ -432,24 +443,27 @@ const AdminDashboardPage = () => {
                   <th className="px-4 py-3 text-left font-semibold">Bệnh</th>
                   <th className="px-4 py-3 text-left font-semibold">Confidence</th>
                   <th className="px-4 py-3 text-left font-semibold">Xử lý</th>
-                  <th className="px-4 py-3 text-left font-semibold">Vườn</th>
+                  <th className="px-4 py-3 text-left font-semibold">Người dùng</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
                 {dashboard.recentPredictions.length > 0 ? (
-                  dashboard.recentPredictions.map((item) => (
-                    <tr key={item._id} className="hover:bg-slate-50/80">
-                      <td className="px-4 py-3 text-slate-700">{new Date(item.ngay_du_doan).toLocaleString('vi-VN')}</td>
-                      <td className="px-4 py-3 font-medium text-slate-900">{item.ket_qua_benh}</td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${Number(item.do_tin_cay || 0) < LOW_CONFIDENCE_THRESHOLD ? 'bg-slate-200 text-slate-900' : 'bg-slate-100 text-slate-700'}`}>
-                          {Number(item.do_tin_cay || 0)}%
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-slate-700">{Number(item.thoi_gian_xu_ly_ms || 0)} ms</td>
-                      <td className="px-4 py-3 text-slate-700">{item.garden_id?.ten_vuon || '-'}</td>
-                    </tr>
-                  ))
+                  // paginate recentPredictions (already sorted newest-first)
+                  dashboard.recentPredictions
+                    .slice((recentPage - 1) * RECENT_PAGE_SIZE, recentPage * RECENT_PAGE_SIZE)
+                    .map((item) => (
+                      <tr key={item._id} className="hover:bg-slate-50/80">
+                        <td className="px-4 py-3 text-slate-700">{new Date(item.ngay_du_doan).toLocaleString('vi-VN')}</td>
+                        <td className="px-4 py-3 font-medium text-slate-900">{item.ket_qua_benh}</td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${Number(item.do_tin_cay || 0) < LOW_CONFIDENCE_THRESHOLD ? 'bg-slate-200 text-slate-900' : 'bg-slate-100 text-slate-700'}`}>
+                            {Number(item.do_tin_cay || 0)}%
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-700">{Number(item.thoi_gian_xu_ly_ms || 0)} ms</td>
+                        <td className="px-4 py-3 text-slate-700">{item.user_id?.ho_ten || item.user_id?.email || '-'}</td>
+                      </tr>
+                    ))
                 ) : (
                   <tr>
                     <td className="px-4 py-8 text-center text-slate-500" colSpan={5}>
@@ -460,24 +474,30 @@ const AdminDashboardPage = () => {
               </tbody>
             </table>
           </div>
-        </section>
 
-        <section className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Error rate proxy</div>
-            <div className="mt-2 text-3xl font-bold text-slate-900">{formatPercent(dashboard.lowConfidenceRate)}</div>
-            <p className="mt-2 text-sm text-slate-500">Tỷ lệ confidence thấp hơn {LOW_CONFIDENCE_THRESHOLD}%</p>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Prediction latency</div>
-            <div className="mt-2 text-3xl font-bold text-slate-900">{Math.round(dashboard.avgProcessingTime)} ms</div>
-            <p className="mt-2 text-sm text-slate-500">Trung bình từ khi backend nhận ảnh đến khi lưu kết quả</p>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Data source</div>
-            <div className="mt-2 text-3xl font-bold text-slate-900">Live</div>
-            <p className="mt-2 text-sm text-slate-500">Tận dụng prediction history, ML status và diseases API hiện có</p>
-          </div>
+          {/* Pagination controls for recent predictions */}
+          {dashboard.recentPredictions.length > RECENT_PAGE_SIZE && (
+            <div className="mt-3 flex items-center justify-between">
+              <div className="text-sm text-slate-600">Hiển thị {(recentPage - 1) * RECENT_PAGE_SIZE + 1} - {Math.min(recentPage * RECENT_PAGE_SIZE, dashboard.recentPredictions.length)} trên {dashboard.recentPredictions.length}</div>
+              <div className="flex items-center gap-2">
+                <button
+                  className="px-3 py-1 rounded-md border bg-white text-sm"
+                  onClick={() => setRecentPage((p) => Math.max(1, p - 1))}
+                  disabled={recentPage === 1}
+                >
+                  Trước
+                </button>
+                <span className="text-sm text-slate-600">{recentPage} / {Math.ceil(dashboard.recentPredictions.length / RECENT_PAGE_SIZE)}</span>
+                <button
+                  className="px-3 py-1 rounded-md border bg-white text-sm"
+                  onClick={() => setRecentPage((p) => Math.min(Math.ceil(dashboard.recentPredictions.length / RECENT_PAGE_SIZE), p + 1))}
+                  disabled={recentPage === Math.ceil(dashboard.recentPredictions.length / RECENT_PAGE_SIZE)}
+                >
+                  Sau
+                </button>
+              </div>
+            </div>
+          )}
         </section>
       </div>
     </AdminLayout>

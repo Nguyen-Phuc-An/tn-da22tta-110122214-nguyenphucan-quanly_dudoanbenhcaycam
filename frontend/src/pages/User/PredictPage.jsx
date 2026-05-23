@@ -9,8 +9,7 @@ const PredictPage = () => {
   const navigate = useNavigate();
   const [image, setImage] = useState(null);
   const [preview, setPreview] = useState(null);
-  const [gardens, setGardens] = useState([]);
-  const [selectedGarden, setSelectedGarden] = useState('');
+  // gardens removed from prediction; predictions tied to user only
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [selectedAdvice, setSelectedAdvice] = useState('');
@@ -22,22 +21,10 @@ const PredictPage = () => {
   const ITEMS_PER_PAGE = 10;
 
   useEffect(() => {
-    fetchGardens();
     fetchPredictions();
   }, []);
 
-  const fetchGardens = async () => {
-    try {
-      const res = await apiClient.get('/gardens');
-      setGardens(res.data.data || []);
-      if (res.data.data?.length > 0) {
-        setSelectedGarden(res.data.data[0]._id);
-      }
-    } catch (error) {
-      console.error('❌ Lỗi tải vườn:', error);
-      toast.error('Không thể tải danh sách vườn');
-    }
-  };
+  // fetchGardens removed
 
   const fetchPredictions = async () => {
     try {
@@ -67,16 +54,13 @@ const PredictPage = () => {
       toast.error('Vui lòng chọn ảnh');
       return;
     }
-    if (!selectedGarden) {
-      toast.error('Vui lòng chọn vườn');
-      return;
-    }
+    // No garden required anymore
 
     try {
       setLoading(true);
       const formData = new FormData();
       formData.append('image', image);
-      formData.append('garden_id', selectedGarden);
+      // garden_id removed from prediction payload
 
       const res = await apiClient.post('/predictions/predict', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -185,24 +169,7 @@ const PredictPage = () => {
           {/* Form */}
           <div className="bg-white rounded-xl shadow-md p-6">
             <form onSubmit={handlePredict} className="space-y-4">
-              {/* Garden Select */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Chọn vườn
-                </label>
-                <select
-                  value={selectedGarden}
-                  onChange={(e) => setSelectedGarden(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                >
-                  <option value="">-- Chọn vườn --</option>
-                  {gardens.map((g) => (
-                    <option key={g._id} value={g._id}>
-                      {g.ten_vuon}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {/* Garden removed from prediction form */}
 
               {/* Image Upload */}
               <div>
@@ -388,9 +355,7 @@ const PredictPage = () => {
                   <table className="w-full">
                     <thead className="bg-gray-50 border-b">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">
-                          Vườn
-                        </th>
+                        {/* Vườn removed - predictions no longer tied to gardens */}
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">
                           Bệnh phát hiện
                         </th>
@@ -413,9 +378,7 @@ const PredictPage = () => {
                               : 'hover:bg-gray-50'
                           }`}
                         >
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className="text-gray-900">{pred.garden_id?.ten_vuon || '—'}</span>
-                          </td>
+                          {/* garden removed */}
                           <td className="px-6 py-4">
                             <p className="font-semibold text-gray-900">{pred.ket_qua_benh || '—'}</p>
                           </td>

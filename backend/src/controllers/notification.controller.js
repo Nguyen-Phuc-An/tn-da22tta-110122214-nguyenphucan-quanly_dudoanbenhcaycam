@@ -1,5 +1,10 @@
 const Notification = require('../models/Notification');
 const User = require('../models/User');
+const Log = require('../models/Log');
+const Garden = require('../models/Garden');
+const Plot = require('../models/Plot');
+const NotificationTracking = require('../models/NotificationTracking');
+const Task = require('../models/Task');
 
 const isAdmin = (req) => req.userRole === 'admin';
 
@@ -75,6 +80,12 @@ const validateNotificationPayload = (payload, isPartial = false) => {
     }
   }
 
+  if (!isPartial || payload.loai !== undefined) {
+    if (payload.loai && !['normal', 'kiem_soat'].includes(payload.loai)) {
+      errors.push('Loại thông báo không hợp lệ');
+    }
+  }
+
   if ((!isPartial || payload.trang_thai !== undefined) && payload.trang_thai && !['active', 'inactive'].includes(payload.trang_thai)) {
     errors.push('Trạng thái phải là active hoặc inactive');
   }
@@ -122,6 +133,105 @@ const isVisibleToCurrentUser = (notification, userId, userRole) => {
   return false;
 };
 
+const buildControlNotificationDetail = async (notificationId) => {
+  const trackings = await NotificationTracking.find({ notification_id: notificationId })
+    .populate('user_id', 'ho_ten email')
+    .populate('garden_id', 'ten_vuon')
+    .populate('plot_id', 'name area tree_type status')
+    .sort({ ngay_cap_nhat: -1 })
+    .lean();
+
+  const mapName = (user) => `${user?.ho_ten || user?.email || ''}`.toLowerCase();
+
+  const items = trackings.map((item) => ({
+    _id: item._id,
+    status: item.status,
+    user: item.user_id,
+    garden: item.garden_id,
+    plot: item.plot_id,
+    ngay_cap_nhat: item.ngay_cap_nhat,
+  }));
+
+  items.sort((a, b) => {
+    const userCompare = mapName(a.user).localeCompare(mapName(b.user));
+    if (userCompare !== 0) return userCompare;
+    return String(a.plot?.name || '').localeCompare(String(b.plot?.name || ''));
+  });
+
+  return {
+    done: items.filter((item) => item.status === 'done'),
+    pending: items.filter((item) => item.status !== 'done'),
+  };
+};
+
+const getRecentReminderForControlNotification = async (notificationId) => {
+  const recentCutoff = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+
+  return Notification.findOne({
+    nhac_nho_cho_notification_id: notificationId,
+    ngay_tao: { $gte: recentCutoff },
+    loai: 'normal',
+    doi_tuong_nhan: 'group',
+  })
+    .select('_id tieu_de ngay_tao')
+    .sort({ ngay_tao: -1 })
+    .lean();
+};
+
+const createControlReminderNotification = async (req, res) => {
+  try {
+    if (!isAdmin(req)) {
+      return res.status(403).json({ success: false, message: 'Chỉ admin mới có quyền gửi nhắc nhở' });
+    }
+
+    const { id } = req.params;
+    const sourceNotification = await Notification.findById(id).lean();
+
+    if (!sourceNotification || sourceNotification.loai !== 'kiem_soat') {
+      return res.status(404).json({ success: false, message: 'Thông báo kiểm soát không tồn tại' });
+    }
+
+    const detail = await buildControlNotificationDetail(id);
+    const recipientIds = [...new Set(detail.pending.map((item) => String(item.user?._id || '')).filter(Boolean))];
+
+    if (recipientIds.length === 0) {
+      return res.status(400).json({ success: false, message: 'Không có user nào chưa làm để gửi nhắc nhở' });
+    }
+
+    const recentReminder = await getRecentReminderForControlNotification(id);
+
+    if (recentReminder) {
+      return res.status(429).json({
+        success: false,
+        message: 'Đã gửi nhắc nhở gần đây, vui lòng đợi thêm 1-2 ngày trước khi gửi lại',
+      });
+    }
+
+    const reminderNotification = new Notification({
+      tieu_de: `Nhắc nhở: ${sourceNotification.tieu_de}`,
+      noi_dung: sourceNotification.noi_dung,
+      doi_tuong_nhan: 'group',
+      nhom_nguoi_nhan: recipientIds,
+      link: normalizeLink(sourceNotification.link),
+      trang_thai: 'active',
+      loai: 'normal',
+      nhac_nho_cho_notification_id: id,
+    });
+
+    await reminderNotification.save();
+
+    return res.status(201).json({
+      success: true,
+      message: 'Gửi nhắc nhở thành công',
+      data: reminderNotification,
+      recipients: recipientIds,
+    });
+  } catch (error) {
+    console.error('❌ Lỗi gửi nhắc nhở kiểm soát:', error.message);
+    return res.status(500).json({ success: false, message: 'Lỗi hệ thống', error: error.message });
+  }
+};
+
 const createNotification = async (req, res) => {
   try {
     if (!isAdmin(req)) {
@@ -131,17 +241,19 @@ const createNotification = async (req, res) => {
       });
     }
 
-    const { tieu_de, noi_dung, doi_tuong_nhan = 'all', nhom_nguoi_nhan = [], link = null, trang_thai = 'active' } = req.body;
+    const { tieu_de, noi_dung, doi_tuong_nhan = 'all', nhom_nguoi_nhan = [], link = null, trang_thai = 'active', loai = 'normal', task_id = null, ngay_lam = null, ghi_chu = '' } = req.body;
+    const normalizedLoai = loai === 'kiem_soat' ? 'kiem_soat' : 'normal';
+    const normalizedTarget = normalizedLoai === 'kiem_soat' ? 'all' : doi_tuong_nhan;
 
-    const errors = validateNotificationPayload({ tieu_de, noi_dung, doi_tuong_nhan, trang_thai });
+    const errors = validateNotificationPayload({ tieu_de, noi_dung, doi_tuong_nhan: normalizedTarget, trang_thai, loai: normalizedLoai });
 
     const recipientList = normalizeRecipientList(nhom_nguoi_nhan);
 
-    if (doi_tuong_nhan === 'group' && recipientList.length === 0) {
+    if (normalizedTarget === 'group' && recipientList.length === 0) {
       errors.push('Vui lòng nhập nhóm người nhận');
     }
 
-    if (doi_tuong_nhan === 'group') {
+    if (normalizedTarget === 'group') {
       const recipientCheck = await validateRecipientsAreUsers(recipientList);
       if (!recipientCheck.ok) {
         errors.push(recipientCheck.message);
@@ -158,13 +270,110 @@ const createNotification = async (req, res) => {
     const notification = new Notification({
       tieu_de: String(tieu_de).trim(),
       noi_dung: String(noi_dung).trim(),
-      doi_tuong_nhan,
-      nhom_nguoi_nhan: doi_tuong_nhan === 'group' ? recipientList : [],
+      doi_tuong_nhan: normalizedTarget,
+      nhom_nguoi_nhan: normalizedTarget === 'group' ? recipientList : [],
       link: normalizeLink(link),
       trang_thai,
+      loai: normalizedLoai,
+      task_id: task_id || null,
+      ngay_lam: ngay_lam || null,
+      ghi_chu: ghi_chu || '',
     });
 
     await notification.save();
+
+    // Nếu là thông báo kiểm soát và gửi cho tất cả user, tạo nhật ký cho mọi mẫu đất của mỗi user
+    if (normalizedLoai === 'kiem_soat') {
+      try {
+        // Task phải tồn tại
+        if (!task_id) {
+          // rollback: xóa notification vừa tạo
+          await Notification.findByIdAndDelete(notification._id);
+          return res.status(400).json({ success: false, message: 'Vui lòng cung cấp công việc (task_id) cho thông báo kiểm soát' });
+        }
+
+        const task = await Task.findById(task_id);
+        if (!task) {
+          await Notification.findByIdAndDelete(notification._id);
+          return res.status(404).json({ success: false, message: 'Công việc không tồn tại' });
+        }
+
+        // Lấy tất cả user thường
+        const users = await User.find({ vai_tro: 'user' }).select('_id');
+        const userIds = users.map((u) => u._id);
+
+        if (userIds.length > 0) {
+          // Lấy tất cả vườn thuộc các user này
+          const gardens = await Garden.find({ user_id: { $in: userIds } }).select('_id user_id season_id');
+          const gardenMap = new Map(gardens.map((g) => [String(g._id), g]));
+          const gardenIds = gardens.map((g) => g._id);
+
+          if (gardenIds.length > 0) {
+            // Lấy tất cả plot thuộc các vườn này
+            const plots = await Plot.find({ garden_id: { $in: gardenIds } }).select('_id garden_id');
+
+            const logsToInsert = [];
+            const trackingToInsert = [];
+
+            for (const plot of plots) {
+              const g = gardenMap.get(String(plot.garden_id));
+              if (!g) continue;
+              const seasonId = g.season_id || null;
+              if (!seasonId) continue; // bỏ qua vườn chưa có mùa vụ
+
+              logsToInsert.push({
+                garden_id: g._id,
+                season_id: seasonId,
+                notification_id: notification._id,
+                task_id: task._id,
+                plot_id: plot._id,
+                plot_ids: [plot._id],
+                ngay_lam: ngay_lam || new Date(),
+                ghi_chu: ghi_chu || '',
+                is_completed: false,
+                nguoi_thuc_hien: '',
+                ngay_tao: new Date(),
+              });
+
+              trackingToInsert.push({
+                notification_id: notification._id,
+                user_id: g.user_id,
+                garden_id: g._id,
+                plot_id: plot._id,
+                status: 'pending',
+              });
+            }
+
+            let insertedLogs = [];
+            if (logsToInsert.length > 0) {
+              insertedLogs = await Log.insertMany(logsToInsert, { ordered: false });
+            }
+
+            if (trackingToInsert.length > 0) {
+              try {
+                await NotificationTracking.insertMany(trackingToInsert, { ordered: false });
+              } catch (err) {
+                // ignore duplicates / partial failures
+                console.warn('⚠️ NotificationTracking insertMany warning:', err.message);
+              }
+            }
+
+            return res.status(201).json({
+              success: true,
+              message: 'Tạo thông báo kiểm soát thành công và đã tạo nhật ký cho các mẫu đất',
+              data: {
+                notification,
+                created_logs: insertedLogs.length || logsToInsert.length,
+              },
+            });
+          }
+        }
+      } catch (err) {
+        console.error('❌ Lỗi khi tạo nhật ký tự động cho thông báo kiểm soát:', err.message);
+        // không rollback notification here to preserve admin action, but return info
+        return res.status(500).json({ success: false, message: 'Tạo thông báo thất bại khi tạo nhật ký tự động', error: err.message });
+      }
+    }
 
     return res.status(201).json({
       success: true,
@@ -191,7 +400,7 @@ const updateNotification = async (req, res) => {
     }
 
     const { id } = req.params;
-    const { tieu_de, noi_dung, doi_tuong_nhan, nhom_nguoi_nhan, link, trang_thai } = req.body;
+    const { tieu_de, noi_dung, doi_tuong_nhan, nhom_nguoi_nhan, link, trang_thai, loai, task_id, ngay_lam, ghi_chu } = req.body;
 
     const errors = validateNotificationPayload({ tieu_de, noi_dung, doi_tuong_nhan, trang_thai }, true);
 
@@ -211,13 +420,22 @@ const updateNotification = async (req, res) => {
       });
     }
 
+    const prevLoai = notification.loai;
+
     if (tieu_de !== undefined) notification.tieu_de = String(tieu_de).trim();
     if (noi_dung !== undefined) notification.noi_dung = String(noi_dung).trim();
     if (doi_tuong_nhan !== undefined) notification.doi_tuong_nhan = doi_tuong_nhan;
     if (link !== undefined) notification.link = normalizeLink(link);
     if (trang_thai !== undefined) notification.trang_thai = trang_thai;
+    if (loai !== undefined) notification.loai = loai;
+    if (task_id !== undefined) notification.task_id = task_id || null;
+    if (ngay_lam !== undefined) notification.ngay_lam = ngay_lam || null;
+    if (ghi_chu !== undefined) notification.ghi_chu = ghi_chu || '';
 
-    if (notification.doi_tuong_nhan === 'group') {
+    if (notification.loai === 'kiem_soat') {
+      notification.doi_tuong_nhan = 'all';
+      notification.nhom_nguoi_nhan = [];
+    } else if (notification.doi_tuong_nhan === 'group') {
       const nextGroup = nhom_nguoi_nhan !== undefined ? normalizeRecipientList(nhom_nguoi_nhan) : normalizeRecipientList(notification.nhom_nguoi_nhan);
 
       const recipientCheck = await validateRecipientsAreUsers(nextGroup);
@@ -242,6 +460,89 @@ const updateNotification = async (req, res) => {
     }
 
     await notification.save();
+    // Nếu chuyển sang loại kiểm soát và gửi cho tất cả user, tạo nhật ký tự động
+    if (notification.loai === 'kiem_soat' && notification.doi_tuong_nhan === 'all' && prevLoai !== 'kiem_soat') {
+      try {
+        if (!notification.task_id) {
+          return res.status(400).json({ success: false, message: 'Vui lòng cung cấp công việc (task_id) cho thông báo kiểm soát' });
+        }
+
+        const task = await Task.findById(notification.task_id);
+        if (!task) {
+          return res.status(404).json({ success: false, message: 'Công việc không tồn tại' });
+        }
+
+        const users = await User.find({ vai_tro: 'user' }).select('_id');
+        const userIds = users.map((u) => u._id);
+
+        if (userIds.length > 0) {
+          const gardens = await Garden.find({ user_id: { $in: userIds } }).select('_id user_id season_id');
+          const gardenMap = new Map(gardens.map((g) => [String(g._id), g]));
+          const gardenIds = gardens.map((g) => g._id);
+
+          if (gardenIds.length > 0) {
+            const plots = await Plot.find({ garden_id: { $in: gardenIds } }).select('_id garden_id');
+
+            const logsToInsert = [];
+            const trackingToInsert = [];
+
+            for (const plot of plots) {
+              const g = gardenMap.get(String(plot.garden_id));
+              if (!g) continue;
+              const seasonId = g.season_id || null;
+              if (!seasonId) continue;
+
+              logsToInsert.push({
+                garden_id: g._id,
+                season_id: seasonId,
+                notification_id: notification._id,
+                task_id: task._id,
+                plot_id: plot._id,
+                plot_ids: [plot._id],
+                ngay_lam: notification.ngay_lam || new Date(),
+                ghi_chu: notification.ghi_chu || '',
+                is_completed: false,
+                nguoi_thuc_hien: '',
+                ngay_tao: new Date(),
+              });
+
+              trackingToInsert.push({
+                notification_id: notification._id,
+                user_id: g.user_id,
+                garden_id: g._id,
+                plot_id: plot._id,
+                status: 'pending',
+              });
+            }
+
+            let insertedLogs = [];
+            if (logsToInsert.length > 0) {
+              insertedLogs = await Log.insertMany(logsToInsert, { ordered: false });
+            }
+
+            if (trackingToInsert.length > 0) {
+              try {
+                await NotificationTracking.insertMany(trackingToInsert, { ordered: false });
+              } catch (err) {
+                console.warn('⚠️ NotificationTracking insertMany warning on update:', err.message);
+              }
+            }
+
+            return res.json({
+              success: true,
+              message: 'Cập nhật thông báo thành công và đã tạo nhật ký tự động',
+              data: {
+                notification,
+                created_logs: insertedLogs.length || logsToInsert.length,
+              },
+            });
+          }
+        }
+      } catch (err) {
+        console.error('❌ Lỗi khi tạo nhật ký tự động trên cập nhật thông báo:', err.message);
+        return res.status(500).json({ success: false, message: 'Cập nhật thông báo nhưng lỗi khi tạo nhật ký tự động', error: err.message });
+      }
+    }
 
     return res.json({
       success: true,
@@ -301,6 +602,7 @@ const getNotificationsForAdmin = async (req, res) => {
     }
 
     const notifications = await Notification.find()
+      .populate('task_id', 'ten_cong_viec')
       .sort({ ngay_tao: -1 })
       .lean();
 
@@ -315,6 +617,36 @@ const getNotificationsForAdmin = async (req, res) => {
       message: 'Lỗi hệ thống',
       error: error.message,
     });
+  }
+};
+
+const getControlNotificationDetail = async (req, res) => {
+  try {
+    if (!isAdmin(req)) {
+      return res.status(403).json({ success: false, message: 'Chỉ admin mới có quyền xem chi tiết thông báo kiểm soát' });
+    }
+
+    const { id } = req.params;
+    const notification = await Notification.findById(id).populate('task_id', 'ten_cong_viec').lean();
+
+    if (!notification) {
+      return res.status(404).json({ success: false, message: 'Thông báo không tồn tại' });
+    }
+
+    const detail = await buildControlNotificationDetail(id);
+    const recentReminder = await getRecentReminderForControlNotification(id);
+
+    return res.json({
+      success: true,
+      data: {
+        notification,
+        ...detail,
+        recent_reminder: recentReminder,
+      },
+    });
+  } catch (error) {
+    console.error('❌ Lỗi lấy chi tiết thông báo kiểm soát:', error.message);
+    return res.status(500).json({ success: false, message: 'Lỗi hệ thống', error: error.message });
   }
 };
 
@@ -391,6 +723,8 @@ module.exports = {
   updateNotification,
   deleteNotification,
   getNotificationsForAdmin,
+  getControlNotificationDetail,
+  createControlReminderNotification,
   getActiveNotifications,
   markNotificationAsRead,
 };

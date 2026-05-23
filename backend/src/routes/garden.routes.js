@@ -6,6 +6,7 @@ const {
   updateGarden,
   changeSeasonForGarden,
   deleteGarden,
+  getSprayProgress,
 } = require('../controllers/garden.controller');
 const { authenticateToken } = require('../config/auth');
 
@@ -19,6 +20,9 @@ router.get('/', getGardensByUser);
 
 // GET chi tiết 1 vườn
 router.get('/:id', getGardenById);
+
+// GET tiến độ xịt thuốc của vườn
+router.get('/:id/spray-progress', getSprayProgress);
 
 // POST tạo vườn mới
 router.post('/', createGarden);

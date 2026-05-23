@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { FaPlus, FaEdit, FaTrash, FaCheck, FaTimes } from 'react-icons/fa';
 import UserLayout from '../../components/User/UserLayout';
 import apiClient from '../../services/apiClient';
@@ -8,8 +8,8 @@ import { useForm } from 'react-hook-form';
 
 const GardensPage = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [gardens, setGardens] = useState([]);
-  const [seasons, setSeasons] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -26,7 +26,6 @@ const GardensPage = () => {
 
   useEffect(() => {
     fetchGardens();
-    fetchSeasons();
   }, []);
 
   const fetchGardens = async () => {
@@ -43,27 +42,9 @@ const GardensPage = () => {
     }
   };
 
-  const fetchSeasons = async () => {
-    try {
-      const res = await apiClient.get('/seasons');
-      console.log('✓ All seasons fetched:', res.data.data);
-      // Filter only active seasons (Đang diễn ra) and store ONLY those
-      const activeSeasons = (res.data.data || []).filter((s) => {
-        const status = s.trang_thai ? s.trang_thai.trim() : '';
-        console.log('Checking season:', s.ten_mua_vu, 'Status:', `"${status}"`, 'Match:', status === 'Đang diễn ra');
-        return status === 'Đang diễn ra';
-      });
-      console.log('✓ Filtered active seasons only:', activeSeasons);
-      // Store ONLY active seasons in state
-      setSeasons(activeSeasons);
-    } catch (err) {
-      console.error('Error fetching seasons:', err);
-      toast.error('Không thể tải danh sách mùa vụ');
-    }
-  };
-
   const onSubmit = async (data) => {
     try {
+      delete data.season_id;
       data.so_cay = parseInt(data.so_cay) || 0;
       
       if (editingId) {
@@ -166,22 +147,6 @@ const GardensPage = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Loại Cây <span className="text-red-600">*</span>
-                  </label>
-                  <select
-                    {...register('loai_cay', { required: 'Bắt buộc' })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                  >
-                    <option value="">Chọn loại cây</option>
-                    <option value="Cam">Cam</option>
-                    <option value="Chanh">Chanh</option>
-                    <option value="Bưởi">Bưởi</option>
-                    <option value="Khác">Khác</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     Diện Tích <span className="text-red-600">*</span>
                   </label>
                   <div className="flex gap-2">
@@ -215,28 +180,6 @@ const GardensPage = () => {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Mùa Vụ Hiện Tại (Tùy Chọn)
-                  </label>
-                  <select
-                    {...register('season_id')}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                  >
-                    <option value="">Chưa chọn mùa vụ</option>
-                    {seasons.length > 0 ? (
-                      seasons.map((season) => (
-                        <option key={season._id} value={season._id}>
-                          {season.ten_mua_vu} ({season.nam})
-                        </option>
-                      ))
-                    ) : (
-                      <option value="" disabled>
-                        Không có mùa vụ nào
-                      </option>
-                    )}
-                  </select>
-                </div>
               </div>
 
               <div className="flex gap-2">
@@ -308,9 +251,6 @@ const GardensPage = () => {
                     Địa Chỉ
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">
-                    Loại Cây
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">
                     Diện Tích
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">
@@ -323,17 +263,16 @@ const GardensPage = () => {
               </thead>
               <tbody className="divide-y">
                 {filteredGardens.map((garden) => (
-                  <tr key={garden._id} className="hover:bg-gray-50">
+                  <tr
+                    key={garden._id}
+                    onClick={() => navigate(`/user/gardens/${garden._id}`)}
+                    className="hover:bg-gray-50 cursor-pointer transition"
+                  >
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-gray-900 font-medium">{garden.ten_vuon}</span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-gray-900">{garden.dia_chi}</span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-green-100 text-green-800">
-                        {garden.loai_cay}
-                      </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-gray-900">{garden.dien_tich} {garden.don_vi || 'm²'}</span>
@@ -358,13 +297,19 @@ const GardensPage = () => {
                     </td>
                     <td className="px-6 py-4 text-center whitespace-nowrap space-x-2">
                       <button
-                        onClick={() => handleEdit(garden)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleEdit(garden);
+                        }}
                         className="px-3 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition text-sm"
                       >
                         <FaEdit className="inline mr-1" /> Sửa
                       </button>
                       <button
-                        onClick={() => setShowDeleteConfirm(garden._id)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setShowDeleteConfirm(garden._id);
+                        }}
                         className="px-3 py-1 bg-red-50 text-red-600 rounded hover:bg-red-100 transition text-sm"
                       >
                         <FaTrash className="inline mr-1" /> Xóa

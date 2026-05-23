@@ -4,16 +4,46 @@ const User = require('../models/User');
 const Expense = require('../models/Expense');
 const Log = require('../models/Log');
 
-// Helper: Auto-end season nếu hết hạn
-const checkAndUpdateSeasonStatus = async (season) => {
-  if (season.thang_ket_thuc && season.trang_thai === 'Đang diễn ra') {
-    const currentMonth = new Date().getMonth() + 1;
-    if (currentMonth > season.thang_ket_thuc) {
-      season.trang_thai = 'Đã kết thúc';
-      await season.save();
-    }
+const getSeasonDateRange = (season) => {
+  if (!season?.nam || !season?.thang_bat_dau || !season?.thang_ket_thuc) {
+    return null;
   }
+
+  const startDate = new Date(Number(season.nam), Number(season.thang_bat_dau) - 1, 1, 0, 0, 0, 0);
+  const endDate = new Date(Number(season.nam), Number(season.thang_ket_thuc), 0, 23, 59, 59, 999);
+
+  return { startDate, endDate };
+};
+
+// Helper: Tự động đồng bộ trạng thái mùa vụ theo thời gian
+const checkAndUpdateSeasonStatus = async (season) => {
+  const dateRange = getSeasonDateRange(season);
+  if (!dateRange) {
+    return season;
+  }
+
+  const now = new Date();
+  let nextStatus = 'Sắp diễn ra';
+
+  if (now >= dateRange.startDate && now <= dateRange.endDate) {
+    nextStatus = 'Đang diễn ra';
+  } else if (now > dateRange.endDate) {
+    nextStatus = 'Đã kết thúc';
+  }
+
+  if (season.trang_thai !== nextStatus) {
+    season.trang_thai = nextStatus;
+    await season.save();
+  }
+
   return season;
+};
+
+const syncSeasonStatuses = async () => {
+  const seasons = await Season.find();
+  for (const season of seasons) {
+    await checkAndUpdateSeasonStatus(season);
+  }
 };
 
 // Lấy tất cả mùa vụ
@@ -23,9 +53,7 @@ const getSeasons = async (req, res) => {
       .sort({ nam: -1, thang_bat_dau: 1 });
 
     // Auto-check trang_thai
-    for (let season of seasons) {
-      await checkAndUpdateSeasonStatus(season);
-    }
+    await syncSeasonStatuses();
 
     // Re-fetch after updates
     seasons = await Season.find()
@@ -63,9 +91,7 @@ const getAllSeasonsByAdmin = async (req, res) => {
       .sort({ nam: -1, thang_bat_dau: 1 });
 
     // Auto-check trang_thai
-    for (let season of seasons) {
-      await checkAndUpdateSeasonStatus(season);
-    }
+    await syncSeasonStatuses();
 
     // Re-fetch after updates
     seasons = await Season.find()
@@ -151,10 +177,11 @@ const createSeason = async (req, res) => {
       thang_bat_dau,
       thang_ket_thuc,
       mo_ta: mo_ta || '',
-      trang_thai: 'Đang diễn ra',
+      trang_thai: 'Sắp diễn ra',
     });
 
     await season.save();
+    await checkAndUpdateSeasonStatus(season);
     
     console.log('✓ Tạo mùa vụ:', ten_mua_vu);
 
@@ -212,13 +239,9 @@ const updateSeason = async (req, res) => {
     if (thang_bat_dau !== undefined) season.thang_bat_dau = thang_bat_dau;
     if (thang_ket_thuc !== undefined) season.thang_ket_thuc = thang_ket_thuc;
     if (mo_ta !== undefined) season.mo_ta = mo_ta;
-    if (trang_thai) {
-      if (['Đang diễn ra', 'Đã kết thúc'].includes(trang_thai)) {
-        season.trang_thai = trang_thai;
-      }
-    }
 
     await season.save();
+    await checkAndUpdateSeasonStatus(season);
     
     console.log('✓ Cập nhật mùa vụ:', ten_mua_vu || season.ten_mua_vu);
 

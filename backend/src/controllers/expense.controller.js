@@ -2,6 +2,29 @@ const Expense = require('../models/Expense');
 const Garden = require('../models/Garden');
 const Season = require('../models/Season');
 const User = require('../models/User');
+const Plot = require('../models/Plot');
+
+const normalizePlotIds = (plotIds) => {
+  if (!plotIds) return [];
+  if (Array.isArray(plotIds)) return plotIds.filter(Boolean).map(String);
+  return [String(plotIds)].filter(Boolean);
+};
+
+const validateGardenPlots = async (gardenId, plotIds) => {
+  const normalizedPlotIds = normalizePlotIds(plotIds);
+  if (normalizedPlotIds.length === 0) return [];
+
+  const plots = await Plot.find({
+    _id: { $in: normalizedPlotIds },
+    garden_id: gardenId,
+  }).select('_id');
+
+  if (plots.length !== normalizedPlotIds.length) {
+    return null;
+  }
+
+  return normalizedPlotIds;
+};
 
 const normalizeExpenseItem = (item) => ({
   ten_mat_hang: String(item?.ten_mat_hang || '').trim(),
@@ -10,10 +33,12 @@ const normalizeExpenseItem = (item) => ({
   gia_tien: Number(item?.gia_tien),
 });
 
+const getSeasonIdFromGarden = (garden) => garden?.season_id?._id || garden?.season_id || null;
+
 // Tạo chi phí mới
 const createExpense = async (req, res) => {
   try {
-    const { garden_id, season_id, loai_chi_phi, items, ngay, don_vi } = req.body;
+    const { garden_id, plot_ids, loai_chi_phi, items, ngay, don_vi } = req.body;
 
     // Validate items array
     if (!items || !Array.isArray(items) || items.length === 0) {
@@ -48,21 +73,19 @@ const createExpense = async (req, res) => {
       });
     }
 
-    // Kiểm tra mùa vụ tồn tại
-    const season = await Season.findById(season_id);
-    if (!season) {
+    const currentSeasonId = getSeasonIdFromGarden(garden);
+    if (!currentSeasonId) {
       return res.status(404).json({
         success: false,
-        message: 'Mùa vụ không tồn tại',
+        message: 'Vườn này chưa có mùa vụ hiện tại',
       });
     }
 
-    // Mùa vụ phải khớp với mùa hiện tại của vườn để tránh lệch dữ liệu
-    const currentSeasonId = garden.season_id?._id || garden.season_id;
-    if (currentSeasonId && String(season._id) !== String(currentSeasonId)) {
+    const validPlotIds = await validateGardenPlots(garden_id, plot_ids);
+    if (validPlotIds === null) {
       return res.status(400).json({
         success: false,
-        message: 'Mùa vụ không khớp với mùa vụ hiện tại của vườn',
+        message: 'Mẫu đất không thuộc vườn này',
       });
     }
 
@@ -93,7 +116,8 @@ const createExpense = async (req, res) => {
     // Tạo chi phí
     const expense = new Expense({
       garden_id,
-      season_id,
+      season_id: currentSeasonId,
+      plot_ids: validPlotIds,
       loai_chi_phi,
       items: normalizedItems.map((item) => ({
         ten_mat_hang: item.ten_mat_hang,
@@ -109,6 +133,7 @@ const createExpense = async (req, res) => {
     await expense.save();
     
     // Populate thông tin sau khi save
+    await expense.populate('plot_ids', 'name area tree_type status');
     await expense.populate('season_id', 'ten_mua_vu nam');
     
     console.log('✓ Tạo chi phí:', loai_chi_phi, '- Tổng:', expense.so_tien);
@@ -198,7 +223,7 @@ const getExpensesByGarden = async (req, res) => {
 // Cập nhật chi phí
 const updateExpense = async (req, res) => {
   try {
-    const { season_id, loai_chi_phi, items, ngay, don_vi } = req.body;
+    const { garden_id, plot_ids, loai_chi_phi, items, ngay, don_vi } = req.body;
     const expense = await Expense.findById(req.params.id);
 
     if (!expense) {
@@ -233,16 +258,28 @@ const updateExpense = async (req, res) => {
       });
     }
 
-    // Nếu cập nhật season_id, kiểm tra mùa vụ tồn tại
-    if (season_id) {
-      const season = await Season.findById(season_id);
-      if (!season) {
-        return res.status(404).json({
+    const targetGardenId = garden_id || expense.garden_id;
+    const targetGarden = garden_id ? await Garden.findById(garden_id) : garden;
+    const currentSeasonId = getSeasonIdFromGarden(targetGarden);
+    if (!currentSeasonId) {
+      return res.status(404).json({
+        success: false,
+        message: 'Vườn này chưa có mùa vụ hiện tại',
+      });
+    }
+
+    expense.garden_id = targetGardenId;
+    expense.season_id = currentSeasonId;
+
+    if (plot_ids !== undefined) {
+      const validPlotIds = await validateGardenPlots(expense.garden_id, plot_ids);
+      if (validPlotIds === null) {
+        return res.status(400).json({
           success: false,
-          message: 'Mùa vụ không tồn tại',
+          message: 'Mẫu đất không thuộc vườn này',
         });
       }
-      expense.season_id = season_id;
+      expense.plot_ids = validPlotIds;
     }
 
     // Validate items nếu được gửi
@@ -295,6 +332,7 @@ const updateExpense = async (req, res) => {
     await expense.save();
     
     // Populate thông tin mùa vụ trước khi trả kết quả
+    await expense.populate('plot_ids', 'name area tree_type status');
     await expense.populate('season_id', 'ten_mua_vu nam');
     
     console.log('✓ Cập nhật chi phí - Tổng:', expense.so_tien);
@@ -371,6 +409,7 @@ const getExpensesBySeason = async (req, res) => {
     // Lấy chi phí và populate thông tin
     const expenses = await Expense.find(query)
       .populate('garden_id', 'ten_vuon')
+      .populate('plot_ids', 'name area tree_type status')
       .populate('season_id', 'ten_mua_vu nam thang_bat_dau thang_ket_thuc')
       .sort({ ngay: -1 });
 

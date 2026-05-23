@@ -10,6 +10,7 @@ const { readSiteState } = require('./utils/siteState');
 // Import routes
 const userRoutes = require('./routes/user.routes');
 const gardenRoutes = require('./routes/garden.routes');
+const plotRoutes = require('./routes/plot.routes');
 const logRoutes = require('./routes/log.routes');
 const expenseRoutes = require('./routes/expense.routes');
 const predictionRoutes = require('./routes/prediction.routes');
@@ -154,6 +155,7 @@ app.get('/', (req, res) => {
       auth: '/api/auth',
       users: '/api/users',
       gardens: '/api/gardens',
+      plots: '/api/plots',
       logs: '/api/logs',
       expenses: '/api/expenses',
       predictions: '/api/predictions',
@@ -174,6 +176,7 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', userRoutes);
 app.use('/api/users', userRoutes);  // Tương tự auth routes nhưng endpoint /api/users
 app.use('/api/gardens', gardenRoutes);
+app.use('/api/plots', plotRoutes);
 app.use('/api/logs', logRoutes);
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/predictions', predictionRoutes);

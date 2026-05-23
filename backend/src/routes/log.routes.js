@@ -1,5 +1,15 @@
 const express = require('express');
-const { createLog, getLogsByGarden, getLogsBySeason, getLogById, getAllLogsForUser, getAllLogsByAdmin, updateLog, deleteLog } = require('../controllers/log.controller');
+const {
+	createLog,
+	getLogsByGarden,
+	getLogsByPlot,
+	getLogsBySeason,
+	getLogById,
+	getAllLogsForUser,
+	getAllLogsByAdmin,
+	updateLog,
+	deleteLog,
+} = require('../controllers/log.controller');
 const { authenticateToken } = require('../config/auth');
 
 const router = express.Router();
@@ -24,6 +34,12 @@ router.get('/admin/all', getAllLogsByAdmin);
  * Lấy nhật ký theo vườn
  */
 router.get('/garden/:garden_id', getLogsByGarden);
+
+/**
+ * GET /api/logs/plot/:id
+ * Lấy nhật ký theo mẫu đất
+ */
+router.get('/plot/:id', getLogsByPlot);
 
 /**
  * GET /api/logs/season/:season_id

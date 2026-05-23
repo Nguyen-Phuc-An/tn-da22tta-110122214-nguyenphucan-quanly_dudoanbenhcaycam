@@ -19,6 +19,11 @@ const expenseSchema = new mongoose.Schema({
     required: [true, 'Vui lòng nhập loại chi phí'],
     enum: ['Phân bón', 'Thuốc', 'Nhân công', 'Dụng cụ', 'Điện nước', 'Khác'],
   },
+  // Danh sách mẫu đất liên quan
+  plot_ids: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Plot',
+  }],
   // Danh sách chi tiết chi phí (items)
   items: [
     {

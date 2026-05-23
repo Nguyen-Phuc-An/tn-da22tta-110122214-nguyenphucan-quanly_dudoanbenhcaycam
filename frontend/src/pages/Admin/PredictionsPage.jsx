@@ -189,16 +189,7 @@ const PredictionsPage = () => {
                 </div>
 
                 {/* Scrollable Content */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-4">                                
-
-                  <div>                    
-                    <h3 className="text-sm font-semibold text-gray-900 mt-1">
-                      {selectedPrediction.garden_id?.ten_vuon || 'N/A'}
-                    </h3>
-                  </div>
-
-                  <hr className="my-4" />
-
+                <div className="flex-1 overflow-y-auto p-6 space-y-4">
                   {/* Disease Image */}
                   {selectedPrediction.hinh_anh && (
                     <div className="flex justify-center bg-gray-100 rounded-lg p-3 mb-4">

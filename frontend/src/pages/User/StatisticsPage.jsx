@@ -8,6 +8,7 @@ import {
   FaDollarSign,
   FaFileAlt,
   FaClock,
+  FaUser,
   FaSeedling,
   FaArrowUp,
   FaBullseye,
@@ -131,10 +132,14 @@ const StatisticsPage = () => {
     ];
 
     stats.predictions.forEach((prediction) => {
-      const dateKey = prediction.ngay_du_doan ? new Date(prediction.ngay_du_doan).toLocaleDateString('vi-VN') : 'N/A';
-      byDayMap.set(dateKey, (byDayMap.get(dateKey) || 0) + 1);
+      // Use ISO keys for reliable chronological ordering
+      const iso = prediction.ngay_du_doan ? new Date(prediction.ngay_du_doan).toISOString().slice(0, 10) : 'N/A';
+      const display = prediction.ngay_du_doan ? new Date(prediction.ngay_du_doan).toLocaleDateString('vi-VN') : 'N/A';
+      const existing = byDayMap.get(iso) || { date: display, count: 0 };
+      existing.count += 1;
+      byDayMap.set(iso, existing);
 
-      const gardenKey = prediction.garden_id?.ten_vuon || 'Chưa gắn vườn';
+      const gardenKey = prediction.user_id?.ho_ten || 'Chưa gắn user';
       byGardenMap.set(gardenKey, (byGardenMap.get(gardenKey) || 0) + 1);
 
       const confidence = getConfidencePercent(prediction.do_tin_cay);
@@ -153,9 +158,12 @@ const StatisticsPage = () => {
     return {
       avgExpensePerGarden,
       avgConfidence,
+      // Return last 10 days but sorted oldest->newest for charts
       byDay: Array.from(byDayMap.entries())
-        .map(([date, count]) => ({ date, count }))
-        .slice(-10),
+        .map(([iso, obj]) => ({ iso, date: obj.date, count: obj.count }))
+        .sort((a, b) => a.iso.localeCompare(b.iso))
+        .slice(-10)
+        .map(({ date, count }) => ({ date, count })),
       byGarden: Array.from(byGardenMap.entries())
         .map(([name, value]) => ({ name, value }))
         .sort((a, b) => b.value - a.value)
@@ -166,19 +174,19 @@ const StatisticsPage = () => {
     };
   }, [stats]);
 
-  // Get latest prediction for each garden
-  const getLatestPredictionByGarden = () => {
-    const predictionsByGarden = {};
+  // Get latest prediction for each user (garden removed)
+  const getLatestPredictionByUser = () => {
+    const predictionsByUser = {};
     
     stats.predictions.forEach(pred => {
-      const gardenId = pred.garden_id?._id || pred.garden_id;
-      if (!predictionsByGarden[gardenId] || 
-          new Date(pred.ngay_du_doan) > new Date(predictionsByGarden[gardenId].ngay_du_doan)) {
-        predictionsByGarden[gardenId] = pred;
+      const userId = pred.user_id?._id || pred.user_id;
+      if (!predictionsByUser[userId] || 
+          new Date(pred.ngay_du_doan) > new Date(predictionsByUser[userId].ngay_du_doan)) {
+        predictionsByUser[userId] = pred;
       }
     });
 
-    return Object.values(predictionsByGarden).sort((a, b) => 
+    return Object.values(predictionsByUser).sort((a, b) => 
       new Date(b.ngay_du_doan) - new Date(a.ngay_du_doan)
     );
   };
@@ -389,67 +397,65 @@ const StatisticsPage = () => {
           </div>
         </div>
 
-        {/* Prediction Details - Latest by Garden */}
-        {stats.gardens.length > 0 && (
+        {/* Prediction Details - 3 Most Recent Predictions */}
+        {stats.predictions.length > 0 && (
           <div className="mt-6 bg-white rounded-xl shadow-md p-6">
             <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <FaClipboardList className="text-blue-600" /> Bệnh dự đoán gần nhất theo vườn
+              <FaClipboardList className="text-blue-600" /> 3 dự đoán bệnh gần nhất
             </h3>
 
             {stats.predictions.length === 0 ? (
               <div className="text-center text-gray-500 py-8">Chưa có dự đoán nào</div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {getLatestPredictionByGarden().map((prediction) => {
-                  const garden = stats.gardens.find(g => g._id === prediction.garden_id?._id || g._id === prediction.garden_id);
-                  return (
-                    <div
-                      key={prediction._id}
-                      className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition"
-                    >
-                      {/* Garden Name */}
-                      <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                        <FaLeaf className="text-green-600" />
-                        {garden?.ten_vuon || 'N/A'}
-                      </h4>
-
-                      {/* Prediction Details */}
-                      <div className="space-y-2">
-                        {/* Disease */}
-                        <div className="flex items-start gap-2">
-                          <span className="text-sm font-medium text-gray-600 w-20">Bệnh:</span>
-                          <span className="inline-block bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-semibold">
-                            {prediction.ket_qua_benh || 'N/A'}
-                          </span>
-                        </div>
-
-                        {/* Confidence */}
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-gray-600">Độ tin cậy:</span>
-                          <span className="font-semibold text-green-600">
-                            {getConfidencePercent(prediction.do_tin_cay)}%
-                          </span>
-                        </div>
-
-                        {/* Date */}
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-gray-600">Ngày:</span>
-                          <span className="text-sm text-gray-600">
-                            {new Date(prediction.ngay_du_doan).toLocaleDateString('vi-VN')}
-                          </span>
-                        </div>
-
-                        {/* AI Advice */}
-                        {prediction.tuvan_ai && (
-                          <div className="mt-3 pt-3 border-t">
-                            <p className="text-xs font-medium text-gray-600 mb-1">💡 Lời khuyên:</p>
-                            <p className="text-xs text-gray-700 line-clamp-2">{prediction.tuvan_ai}</p>
+                {stats.predictions
+                  .slice()
+                  .sort((a, b) => new Date(b.ngay_du_doan) - new Date(a.ngay_du_doan))
+                  .slice(0, 3)
+                  .map((prediction) => {
+                    const user = prediction.user_id?.ho_ten || 'N/A';
+                    return (
+                      <div
+                        key={prediction._id}
+                        className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition"
+                      >
+                        {/* Prediction Details */}
+                        <div className="space-y-2">
+                          {/* Disease */}
+                          <div className="flex items-start gap-2">
+                            <span className="text-sm font-medium text-gray-600 w-20">Bệnh:</span>
+                            <span className="inline-block bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-semibold">
+                              {prediction.ket_qua_benh || 'N/A'}
+                            </span>
                           </div>
-                        )}
+
+                          {/* Confidence */}
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-gray-600">Độ tin cậy:</span>
+                            <span className="font-semibold text-green-600">
+                              {getConfidencePercent(prediction.do_tin_cay)}%
+                            </span>
+                          </div>
+
+                          {/* Date */}
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-gray-600">Ngày:</span>
+                            <span className="text-sm text-gray-600">
+                              {new Date(prediction.ngay_du_doan).toLocaleDateString('vi-VN')}
+                            </span>
+                          </div>
+
+                          {/* AI Advice */}
+                          {prediction.tuvan_ai && (
+                            <div className="mt-3 pt-3 border-t">
+                              <p className="text-xs font-medium text-gray-600 mb-1">💡 Lời khuyên:</p>
+                              <p className="text-xs text-gray-700 line-clamp-2">{prediction.tuvan_ai}</p>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
               </div>
             )}
           </div>

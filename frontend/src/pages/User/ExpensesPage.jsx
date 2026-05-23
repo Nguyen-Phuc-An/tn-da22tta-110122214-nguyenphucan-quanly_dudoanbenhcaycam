@@ -11,7 +11,6 @@ const ExpensesPage = () => {
   const location = useLocation();
   const [expenses, setExpenses] = useState([]);
   const [gardens, setGardens] = useState([]);
-  const [seasons, setSeasons] = useState([]);
   const [fertilizers, setFertilizers] = useState([]);
   const [pesticides, setPesticides] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -21,13 +20,15 @@ const ExpensesPage = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [selectedExpense, setSelectedExpense] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [plotOptions, setPlotOptions] = useState([]);
+  const [selectedPlotIds, setSelectedPlotIds] = useState([]);
+  const [editingGardenId, setEditingGardenId] = useState(null);
   const itemsPerPage = 8;
   
   // Form state
   const { register: formRegister, handleSubmit, reset, watch, setValue } = useForm({
     defaultValues: {
       garden_id: '',
-      season_id: '',
       loai_chi_phi: '',
       ngay: getTodayDateString(),
       don_vi: 'vnđ',
@@ -40,6 +41,9 @@ const ExpensesPage = () => {
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(null);
   const selectedGarden = watch('garden_id');
   const selectedExpenseType = watch('loai_chi_phi');
+  const plotNameMap = new Map(
+    plotOptions.map((plot) => [String(plot._id), plot.name || plot.ten || ''])
+  );
 
   function getTodayDateString() {
     const today = new Date();
@@ -53,25 +57,40 @@ const ExpensesPage = () => {
     }
   }, [location.pathname]);
 
-  // Auto-set season when garden is selected in create mode
   useEffect(() => {
-    if (editingId) {
-      return;
-    }
+    const fetchPlots = async () => {
+      if (!selectedGarden) {
+        setPlotOptions([]);
+        setSelectedPlotIds([]);
+        return;
+      }
 
-    if (!selectedGarden) {
-      setValue('season_id', '');
-      return;
-    }
+      try {
+        const res = await apiClient.get(`/plots/garden/${selectedGarden}`);
+        const plots = res.data.data || [];
+        setPlotOptions(plots);
 
-    const currentGarden = gardens.find((garden) => garden._id === selectedGarden);
-    const currentSeasonId = currentGarden?.season_id?._id || currentGarden?.season_id || '';
+        const plotIds = plots.map((plot) => plot._id);
 
-    setValue('season_id', currentSeasonId, {
-      shouldDirty: true,
-      shouldValidate: true,
-    });
-  }, [selectedGarden, gardens, editingId, setValue]);
+        if (!editingId) {
+          setSelectedPlotIds(plotIds);
+          return;
+        }
+
+        if (editingGardenId && String(editingGardenId) === String(selectedGarden)) {
+          setSelectedPlotIds((current) => current.filter((plotId) => plotIds.includes(plotId)));
+        } else {
+          setSelectedPlotIds(plotIds);
+        }
+      } catch (error) {
+        console.error('❌ Error fetching plots:', error);
+        setPlotOptions([]);
+        setSelectedPlotIds([]);
+      }
+    };
+
+    fetchPlots();
+  }, [selectedGarden, editingId, editingGardenId]);
 
   // Reset to page 1 when search term changes
   useEffect(() => {
@@ -81,7 +100,6 @@ const ExpensesPage = () => {
   useEffect(() => {
     fetchExpenses();
     fetchGardens();
-    fetchSeasons();
     fetchSuggestionSources();
   }, []);
 
@@ -119,15 +137,6 @@ const ExpensesPage = () => {
       setGardens(res.data.data || []);
     } catch (err) {
       console.error('Error fetching gardens:', err);
-    }
-  };
-
-  const fetchSeasons = async () => {
-    try {
-      const res = await apiClient.get('/seasons');
-      setSeasons(res.data.data || []);
-    } catch (err) {
-      console.error('Error fetching seasons:', err);
     }
   };
 
@@ -243,15 +252,16 @@ const ExpensesPage = () => {
 
       const submitData = {
         ...data,
+        plot_ids: selectedPlotIds,
         items: items,
       };
 
       if (editingId) {
-        await apiClient.put(`/expenses/${editingId}`, submitData);
+        const res = await apiClient.put(`/expenses/${editingId}`, submitData);
         console.log('✓ Expense updated:', editingId);
         toast.success('Chi phí được cập nhật thành công');
         setExpenses(
-          expenses.map((e) => (e._id === editingId ? { ...e, ...submitData } : e))
+          expenses.map((e) => (e._id === editingId ? res.data.data || e : e))
         );
       } else {
         const res = await apiClient.post('/expenses', submitData);
@@ -262,6 +272,8 @@ const ExpensesPage = () => {
       
       reset();
       setItems([]);
+      setSelectedPlotIds([]);
+      setEditingGardenId(null);
       setShowForm(false);
       setEditingId(null);
     } catch (err) {
@@ -274,14 +286,25 @@ const ExpensesPage = () => {
     setEditingId(expense._id);
     const expenseData = {
       garden_id: expense.garden_id?._id || expense.garden_id,
-      season_id: expense.season_id?._id || expense.season_id,
       loai_chi_phi: expense.loai_chi_phi,
       ngay: new Date(expense.ngay).toISOString().split('T')[0],
       don_vi: expense.don_vi,
     };
     reset(expenseData);
     setItems(expense.items || []);
+    setSelectedPlotIds((expense.plot_ids || []).map((plot) => plot._id || plot));
+    setEditingGardenId(expenseData.garden_id);
     setShowForm(true);
+  };
+
+  const handleToggleAllPlots = (checked) => {
+    setSelectedPlotIds(checked ? plotOptions.map((plot) => plot._id) : []);
+  };
+
+  const handleTogglePlot = (plotId, checked) => {
+    setSelectedPlotIds((current) =>
+      checked ? [...current, plotId] : current.filter((currentId) => currentId !== plotId)
+    );
   };
 
   const handleDeleteExpense = async (expenseId) => {
@@ -296,8 +319,6 @@ const ExpensesPage = () => {
       toast.error(err.response?.data?.message || 'Không thể xóa chi phí');
     }
   };
-
-  const filteredSeasons = seasons;
 
   const filteredExpenses = expenses.filter(
     (expense) =>
@@ -332,12 +353,12 @@ const ExpensesPage = () => {
               setEditingId(null);
               reset({ 
                 garden_id: '',
-                season_id: '',
                 loai_chi_phi: '',
                 ngay: getTodayDateString(),
                 don_vi: 'vnđ',
               });
               setItems([]);
+              setSelectedPlotIds([]);
               setShowForm(!showForm);
             }}
             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center gap-2"
@@ -355,7 +376,7 @@ const ExpensesPage = () => {
 
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               {/* Header Fields */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Vườn <span className="text-red-600">*</span>
@@ -368,23 +389,6 @@ const ExpensesPage = () => {
                     {gardens.map((garden) => (
                       <option key={garden._id} value={garden._id}>
                         {garden.ten_vuon}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Mùa Vụ <span className="text-red-600">*</span>
-                  </label>
-                  <select
-                    {...formRegister('season_id', { required: 'Bắt buộc' })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                  >
-                    <option value="">Chọn mùa vụ</option>
-                    {filteredSeasons.map((season) => (
-                      <option key={season._id} value={season._id}>
-                        {season.ten_mua_vu} ({season.nam})
                       </option>
                     ))}
                   </select>
@@ -418,6 +422,52 @@ const ExpensesPage = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                   />
                 </div>
+              </div>
+
+              <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Mẫu Đất
+                </label>
+                {!selectedGarden ? (
+                  <div className="rounded-lg border border-dashed border-gray-300 bg-white px-4 py-3 text-sm text-gray-500">
+                    Hãy chọn vườn trước để hiển thị danh sách mẫu đất.
+                  </div>
+                ) : plotOptions.length > 0 ? (
+                  <>
+                    <label className="flex items-center gap-2 text-sm font-semibold text-gray-800 mb-3">
+                      <input
+                        type="checkbox"
+                        checked={plotOptions.length > 0 && selectedPlotIds.length === plotOptions.length}
+                        onChange={(e) => handleToggleAllPlots(e.target.checked)}
+                        className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                      />
+                      Tất cả
+                    </label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-1">
+                      {plotOptions.map((plot) => (
+                        <label
+                          key={plot._id}
+                          className="flex items-start gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm hover:border-green-300"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedPlotIds.includes(plot._id)}
+                            onChange={(e) => handleTogglePlot(plot._id, e.target.checked)}
+                            className="mt-1 h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                          />
+                          <span className="text-gray-800">
+                            {plot.name}
+                            <span className="ml-1 text-gray-500">({Number(plot.area || 0).toFixed(1)} m²)</span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div className="rounded-lg border border-dashed border-gray-300 bg-white px-4 py-3 text-sm text-gray-500">
+                    Vườn này chưa có mẫu đất nào.
+                  </div>
+                )}
               </div>
 
               {/* Items Table */}
@@ -595,6 +645,8 @@ const ExpensesPage = () => {
                     setShowForm(false);
                     reset();
                     setItems([]);
+                    setSelectedPlotIds([]);
+                    setEditingGardenId(null);
                     setEditingId(null);
                   }}
                   className="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition flex items-center justify-center gap-2"
@@ -748,6 +800,26 @@ const ExpensesPage = () => {
 
                 {/* Items List with Scrolling */}
                 <div className="flex-1 overflow-y-auto p-4">
+                  <div className="mb-3">
+                    <p className="text-xs font-semibold uppercase text-gray-600 mb-2">Mẫu đất</p>
+                    {selectedExpense.plot_ids && selectedExpense.plot_ids.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {selectedExpense.plot_ids.map((plot) => (
+                          <span
+                            key={plot._id || plot}
+                            className="inline-flex items-center rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700"
+                          >
+                            {plot.name || plot.ten || plotNameMap.get(String(plot._id || plot)) || 'Mẫu đất'}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
+                        Tất cả mẫu
+                      </span>
+                    )}
+                  </div>
+
                   {selectedExpense.items && selectedExpense.items.length > 0 ? (
                     <div className="space-y-3 max-h-[240px] overflow-y-auto pr-2">
                       {selectedExpense.items.map((item, index) => (

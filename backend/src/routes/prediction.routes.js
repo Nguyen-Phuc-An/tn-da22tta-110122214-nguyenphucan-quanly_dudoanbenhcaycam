@@ -88,7 +88,7 @@ router.get('/:id', getPredictionById);
  * Request:
  *   - Form data:
  *     * image: file ảnh (required)
- *     * garden_id: ID vườn (required)
+ *     (prediction is tied to authenticated user; no garden_id required)
  * 
  * Response:
  *   {

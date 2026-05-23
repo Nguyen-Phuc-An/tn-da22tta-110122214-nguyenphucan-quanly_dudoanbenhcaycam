@@ -49,8 +49,7 @@ const HomePage = () => {
   // Prediction state
   const [image, setImage] = useState(null);
   const [preview, setPreview] = useState(null);
-  const [gardens, setGardens] = useState([]);
-  const [selectedGarden, setSelectedGarden] = useState('');
+  // garden selection removed for predictions
   const [predicting, setPredicting] = useState(false);
   const [predictionResult, setPredictionResult] = useState(null);
   const [selectedAdvice, setSelectedAdvice] = useState('');
@@ -59,7 +58,6 @@ const HomePage = () => {
 
   useEffect(() => {
     fetchStats();
-    fetchGardens();
     fetchNotifications();
   }, []);
 
@@ -141,17 +139,7 @@ const HomePage = () => {
     }
   };
 
-  const fetchGardens = async () => {
-    try {
-      const res = await apiClient.get('/gardens');
-      setGardens(res.data.data || []);
-      if (res.data.data?.length > 0) {
-        setSelectedGarden(res.data.data[0]._id);
-      }
-    } catch (error) {
-      console.error('❌ Lỗi tải vườn:', error);
-    }
-  };
+  // fetchGardens removed
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
@@ -171,16 +159,11 @@ const HomePage = () => {
       toast.error('Vui lòng chọn ảnh');
       return;
     }
-    if (!selectedGarden) {
-      toast.error('Vui lòng chọn vườn');
-      return;
-    }
-
     try {
       setPredicting(true);
       const formData = new FormData();
       formData.append('image', image);
-      formData.append('garden_id', selectedGarden);
+      // garden_id removed from prediction
 
       const res = await apiClient.post('/predictions/predict', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -217,13 +200,17 @@ const HomePage = () => {
     ];
 
     allPredictions.forEach((prediction) => {
-      const dayKey = prediction.ngay_du_doan ? new Date(prediction.ngay_du_doan).toLocaleDateString('vi-VN') : 'N/A';
-      byDayMap.set(dayKey, (byDayMap.get(dayKey) || 0) + 1);
+      // Use ISO date as key for correct chronological sorting, and keep a display string
+      const isoKey = prediction.ngay_du_doan ? new Date(prediction.ngay_du_doan).toISOString().slice(0, 10) : 'N/A';
+      const display = prediction.ngay_du_doan ? new Date(prediction.ngay_du_doan).toLocaleDateString('vi-VN') : 'N/A';
+      const existing = byDayMap.get(isoKey) || { date: display, count: 0 };
+      existing.count += 1;
+      byDayMap.set(isoKey, existing);
 
       const diseaseKey = prediction.ket_qua_benh || 'Không xác định';
       byDiseaseMap.set(diseaseKey, (byDiseaseMap.get(diseaseKey) || 0) + 1);
 
-      const gardenKey = prediction.garden_id?.ten_vuon || 'Chưa gắn vườn';
+      const gardenKey = prediction.user_id?.ho_ten || 'Chưa gắn user';
       byGardenMap.set(gardenKey, (byGardenMap.get(gardenKey) || 0) + 1);
 
       const confidence = Number(prediction.do_tin_cay || 0) * 100;
@@ -234,7 +221,11 @@ const HomePage = () => {
     });
 
     return {
-      byDay: Array.from(byDayMap.entries()).map(([date, count]) => ({ date, count })),
+      // Sort days ascending (oldest -> newest) for left-to-right chart axis
+      byDay: Array.from(byDayMap.entries())
+        .map(([iso, obj]) => ({ iso, date: obj.date, count: obj.count }))
+        .sort((a, b) => a.iso.localeCompare(b.iso))
+        .map(({ date, count }) => ({ date, count })),
       byDisease: Array.from(byDiseaseMap.entries())
         .map(([name, value]) => ({ name, value }))
         .sort((a, b) => b.value - a.value)
@@ -341,35 +332,13 @@ const HomePage = () => {
                 </p>
               </div>
               <div className="text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-full px-4 py-2 self-start md:self-auto">
-                Chọn vườn, tải ảnh và xem kết quả ngay
+                Tải ảnh và xem kết quả ngay
               </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <form onSubmit={handlePredict} className="space-y-5">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Chọn vườn</label>
-                    <select
-                      value={selectedGarden}
-                      onChange={(e) => setSelectedGarden(e.target.value)}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                      disabled={gardens.length === 0}
-                    >
-                      <option value="">-- Chọn vườn --</option>
-                      {gardens.map((g) => (
-                        <option key={g._id} value={g._id}>
-                          {g.ten_vuon}
-                        </option>
-                      ))}
-                    </select>
-                    {gardens.length === 0 && (
-                      <p className="text-sm text-orange-500 mt-2 flex items-center gap-2">
-                        <FaExclamationTriangle /> Vui lòng <Link to="/user/gardens/new" className="underline font-semibold">thêm vườn</Link> trước
-                      </p>
-                    )}
-                  </div>
-
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Tải ảnh lá cây</label>
                     <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-green-500 transition bg-gray-50/60">
@@ -400,7 +369,7 @@ const HomePage = () => {
 
                   <button
                     type="submit"
-                    disabled={predicting || !selectedGarden || gardens.length === 0}
+                    disabled={predicting || !image}
                     className="w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 transition font-semibold disabled:bg-gray-400 flex items-center justify-center gap-2"
                   >
                     {predicting ? (<><FaHourglassHalf className="animate-spin" /> Đang dự đoán...</>) : (<><FaMicroscope /> Dự đoán ngay</>)}
@@ -684,7 +653,7 @@ const HomePage = () => {
                   {recentData.predictions.map((pred, idx) => (
                     <div key={idx} className="border-l-4 border-blue-500 pl-3 py-2">
                       <p className="font-semibold text-gray-900 text-sm">{pred.ket_qua_benh}</p>
-                      <p className="text-xs text-gray-500">{pred.garden_id?.ten_vuon || 'N/A'}</p>
+                      <p className="text-xs text-gray-500">{pred.user_id?.ho_ten || 'N/A'}</p>
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-xs font-bold text-green-600">{Math.round((pred.do_tin_cay || 0))}%</span>
                         <div className="flex-1 bg-gray-200 rounded-full h-1 overflow-hidden">

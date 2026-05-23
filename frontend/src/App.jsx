@@ -24,6 +24,8 @@ import MLTrainingPage from './pages/Admin/MLTrainingPage';
 // User Pages
 import HomePage from './pages/User/HomePage';
 import UserGardensPage from './pages/User/GardensPage';
+import GardenDetailPage from './pages/User/GardenDetailPage';
+import GardenFormPage from './pages/User/GardenFormPage';
 import UserLogsPage from './pages/User/LogsPage';
 import PredictPage from './pages/User/PredictPage';
 import UserExpensesPage from './pages/User/ExpensesPage';
@@ -190,6 +192,22 @@ function App() {
             element={
               <PrivateRoute>
                 <UserGardensPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/user/gardens/:id"
+            element={
+              <PrivateRoute>
+                <GardenDetailPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/user/gardens/:id/edit"
+            element={
+              <PrivateRoute>
+                <GardenFormPage />
               </PrivateRoute>
             }
           />

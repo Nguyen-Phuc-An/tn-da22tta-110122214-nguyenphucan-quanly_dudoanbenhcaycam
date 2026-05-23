@@ -36,6 +36,34 @@ const notificationSchema = new mongoose.Schema({
     default: 'active',
     index: true,
   },
+  // Loại thông báo: normal (bình thường) | kiem_soat (kiểm soát)
+  loai: {
+    type: String,
+    enum: ['normal', 'kiem_soat'],
+    default: 'normal',
+    index: true,
+  },
+  // Nếu là thông báo kiểm soát, có thể gắn một công việc và ngày được hẹn
+  task_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Task',
+    default: null,
+  },
+  ngay_lam: {
+    type: Date,
+    default: null,
+  },
+  ghi_chu: {
+    type: String,
+    default: '',
+    trim: true,
+  },
+  nhac_nho_cho_notification_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Notification',
+    default: null,
+    index: true,
+  },
   ngay_tao: {
     type: Date,
     default: Date.now,

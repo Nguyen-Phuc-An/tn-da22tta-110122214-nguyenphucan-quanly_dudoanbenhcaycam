@@ -32,11 +32,6 @@ const gardenSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Vui lòng nhập địa chỉ'],
   },
-  loai_cay: {
-    type: String,
-    required: [true, 'Vui lòng nhập loại cây'],
-    enum: ['Cam', 'Chanh', 'Bưởi', 'Khác'],
-  },
   so_cay: {
     type: Number,
     default: 0,
@@ -54,6 +49,15 @@ const gardenSchema = new mongoose.Schema({
 
 // Index để tìm kiếm nhanh
 gardenSchema.index({ user_id: 1, season_id: 1 });
+
+gardenSchema.virtual('plots', {
+  ref: 'Plot',
+  localField: '_id',
+  foreignField: 'garden_id',
+});
+
+gardenSchema.set('toJSON', { virtuals: true });
+gardenSchema.set('toObject', { virtuals: true });
 
 // Cập nhật ngay_cap_nhat khi lưu
 gardenSchema.pre('save', function (next) {

@@ -1,14 +1,48 @@
 const Garden = require('../models/Garden');
 const Season = require('../models/Season');
 const User = require('../models/User');
+const Plot = require('../models/Plot');
+const Log = require('../models/Log');
+
+const getGardenPlotTotalArea = async (gardenId, excludePlotId = null) => {
+  const filter = { garden_id: gardenId };
+  if (excludePlotId) {
+    filter._id = { $ne: excludePlotId };
+  }
+
+  const plots = await Plot.find(filter).select('area');
+  return plots.reduce((sum, plot) => sum + Number(plot.area || 0), 0);
+};
+
+const getCurrentSeasonId = async () => {
+  const seasons = await Season.find().sort({ nam: -1, thang_bat_dau: 1 });
+  const now = new Date();
+
+  const activeSeason = seasons.find((season) => {
+    if (!season.nam || !season.thang_bat_dau || !season.thang_ket_thuc) {
+      return season.trang_thai === 'Đang diễn ra';
+    }
+
+    const startDate = new Date(Number(season.nam), Number(season.thang_bat_dau) - 1, 1, 0, 0, 0, 0);
+    const endDate = new Date(Number(season.nam), Number(season.thang_ket_thuc), 0, 23, 59, 59, 999);
+    return now >= startDate && now <= endDate;
+  });
+
+  if (activeSeason) {
+    return activeSeason._id;
+  }
+
+  const fallbackSeason = seasons.find((season) => season.trang_thai === 'Đang diễn ra');
+  return fallbackSeason?._id || null;
+};
 
 // Tạo vườn mới
 const createGarden = async (req, res) => {
   try {
-    const { ten_vuon, dien_tich, dia_chi, loai_cay, so_cay, don_vi, user_id, season_id } = req.body;
+    const { ten_vuon, dien_tich, dia_chi, so_cay, don_vi, user_id } = req.body;
 
     // Kiểm tra dữ liệu bắt buộc
-    if (!ten_vuon || !dien_tich || !dia_chi || !loai_cay) {
+    if (!ten_vuon || !dien_tich || !dia_chi) {
       return res.status(400).json({
         success: false,
         message: 'Vui lòng nhập đủ thông tin bắt buộc',
@@ -38,25 +72,7 @@ const createGarden = async (req, res) => {
       gardenUserId = user_id;
     }
 
-    // Kiểm tra season_id nếu được cung cấp
-    let gardenSeasonId = null;
-    if (season_id) {
-      const season = await Season.findById(season_id);
-      if (!season) {
-        return res.status(404).json({
-          success: false,
-          message: 'Mùa vụ không tồn tại',
-        });
-      }
-      // Không cho chọn mùa vụ đã kết thúc
-      if (season.trang_thai === 'Đã kết thúc') {
-        return res.status(400).json({
-          success: false,
-          message: 'Không thể gán mùa vụ đã kết thúc',
-        });
-      }
-      gardenSeasonId = season_id;
-    }
+    const gardenSeasonId = await getCurrentSeasonId();
 
     // Tạo vườn mới
     const garden = new Garden({
@@ -65,7 +81,6 @@ const createGarden = async (req, res) => {
       ten_vuon,
       dien_tich,
       dia_chi,
-      loai_cay,
       so_cay: so_cay || 0,
       don_vi: don_vi || 'm²',
     });
@@ -145,7 +160,11 @@ const getGardenById = async (req, res) => {
   try {
     const garden = await Garden.findById(req.params.id)
       .populate('user_id', 'ho_ten email')
-      .populate('season_id', 'ten_mua_vu nam trang_thai');
+      .populate('season_id', 'ten_mua_vu nam trang_thai')
+      .populate({
+        path: 'plots',
+        options: { sort: { created_at: -1 } },
+      });
 
     if (!garden) {
       return res.status(404).json({
@@ -198,10 +217,74 @@ const getGardenById = async (req, res) => {
   }
 };
 
+const getSprayProgress = async (req, res) => {
+  try {
+    const garden = await Garden.findById(req.params.id).populate('user_id', 'ho_ten email');
+    if (!garden) {
+      return res.status(404).json({
+        success: false,
+        message: 'Vườn không tồn tại',
+      });
+    }
+
+    const user = await User.findById(req.userId);
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Người dùng không tồn tại',
+      });
+    }
+
+    if (user.vai_tro !== 'admin' && String(garden.user_id?._id || garden.user_id) !== String(req.userId)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Bạn không có quyền xem tiến độ này',
+      });
+    }
+
+    const plots = await Plot.find({ garden_id: req.params.id }).sort({ created_at: 1 });
+    const logs = await Log.find({ garden_id: req.params.id, is_completed: true })
+      .select('plot_id plot_ids is_completed');
+
+    const sprayedPlotIdSet = new Set();
+    for (const log of logs) {
+      if (log.plot_id) sprayedPlotIdSet.add(String(log.plot_id));
+      if (Array.isArray(log.plot_ids)) {
+        log.plot_ids.forEach((plotId) => sprayedPlotIdSet.add(String(plotId)));
+      }
+    }
+
+    const daXitPlots = plots.filter((plot) => sprayedPlotIdSet.has(String(plot._id)));
+    const chuaXitPlots = plots.filter((plot) => !sprayedPlotIdSet.has(String(plot._id)));
+    const tongMau = plots.length;
+    const daXit = daXitPlots.length;
+    const chuaXit = chuaXitPlots.length;
+    const phanTram = tongMau > 0 ? Math.round((daXit / tongMau) * 100) : 0;
+
+    res.json({
+      success: true,
+      data: {
+        tong_mau: tongMau,
+        da_xit: daXit,
+        chua_xit: chuaXit,
+        phan_tram: phanTram,
+        da_xit_plots: daXitPlots,
+        chua_xit_plots: chuaXitPlots,
+      },
+    });
+  } catch (error) {
+    console.error('❌ Lỗi lấy tiến độ xịt thuốc:', error.message);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 // Cập nhật vườn
 const updateGarden = async (req, res) => {
   try {
-    const { ten_vuon, dien_tich, dia_chi, loai_cay, so_cay, don_vi, season_id } = req.body;
+    const { ten_vuon, dien_tich, dia_chi, so_cay, don_vi } = req.body;
 
     // Kiểm tra vườn tồn tại
     const garden = await Garden.findById(req.params.id);
@@ -221,36 +304,22 @@ const updateGarden = async (req, res) => {
       });
     }
 
-    // Kiểm tra season_id nếu được cung cấp
-    if (season_id !== undefined) {
-      if (season_id) {
-        const season = await Season.findById(season_id);
-        if (!season) {
-          return res.status(404).json({
-            success: false,
-            message: 'Mùa vụ không tồn tại',
-          });
-        }
-        // Không cho chọn mùa vụ đã kết thúc
-        if (season.trang_thai === 'Đã kết thúc') {
-          return res.status(400).json({
-            success: false,
-            message: 'Không thể gán mùa vụ đã kết thúc',
-          });
-        }
-        garden.season_id = season_id;
-      } else {
-        garden.season_id = null;
-      }
-    }
-
     // Cập nhật dữ liệu
     if (ten_vuon) garden.ten_vuon = ten_vuon;
     if (dien_tich) garden.dien_tich = dien_tich;
     if (dia_chi) garden.dia_chi = dia_chi;
-    if (loai_cay) garden.loai_cay = loai_cay;
     if (so_cay !== undefined) garden.so_cay = so_cay;
     if (don_vi) garden.don_vi = don_vi;
+
+    if (dien_tich !== undefined) {
+      const totalPlotArea = await getGardenPlotTotalArea(garden._id);
+      if (Number(dien_tich) < totalPlotArea) {
+        return res.status(400).json({
+          success: false,
+          message: 'Diện tích vườn không được nhỏ hơn tổng diện tích các mẫu đất',
+        });
+      }
+    }
 
     garden.ngay_cap_nhat = new Date();
 
@@ -370,6 +439,7 @@ const deleteGarden = async (req, res) => {
     }
 
     await Garden.findByIdAndDelete(req.params.id);
+    await Plot.deleteMany({ garden_id: req.params.id });
     console.log('✓ Xóa vườn:', garden.ten_vuon);
 
     res.json({
@@ -392,4 +462,5 @@ module.exports = {
   updateGarden,
   changeSeasonForGarden,
   deleteGarden,
+  getSprayProgress,
 };
