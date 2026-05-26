@@ -253,6 +253,184 @@ const lockUser = async (req, res) => {
   }
 };
 
+// Tạo user mới (chỉ admin)
+const createUser = async (req, res) => {
+  try {
+    const { ho_ten, email, mat_khau, vai_tro = 'user', is_locked = false } = req.body;
+
+    const currentUser = await User.findById(req.userId);
+    if (!currentUser || currentUser.vai_tro !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied - Admin only',
+      });
+    }
+
+    if (!ho_ten || !email || !mat_khau) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng nhập họ tên, email và mật khẩu',
+      });
+    }
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const existingUser = await User.findOne({ email: normalizedEmail });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email đã được sử dụng',
+      });
+    }
+
+    const user = new User({
+      ho_ten: String(ho_ten).trim(),
+      email: normalizedEmail,
+      mat_khau,
+      vai_tro: vai_tro === 'admin' ? 'admin' : 'user',
+      is_locked: Boolean(is_locked),
+    });
+
+    await user.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'Tạo user thành công',
+      data: {
+        _id: user._id,
+        ho_ten: user.ho_ten,
+        email: user.email,
+        vai_tro: user.vai_tro,
+        is_locked: user.is_locked,
+        ngay_tao: user.ngay_tao,
+      },
+    });
+  } catch (error) {
+    console.error('❌ Lỗi tạo user:', error.message);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+// Cập nhật user (chỉ admin)
+const updateUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { ho_ten, email, mat_khau, vai_tro, is_locked } = req.body;
+
+    const currentUser = await User.findById(req.userId);
+    if (!currentUser || currentUser.vai_tro !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied - Admin only',
+      });
+    }
+
+    const user = await User.findById(userId).select('+mat_khau');
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User không tồn tại',
+      });
+    }
+
+    if (ho_ten !== undefined) user.ho_ten = String(ho_ten).trim();
+
+    if (email !== undefined) {
+      const normalizedEmail = String(email).trim().toLowerCase();
+      const existed = await User.findOne({ email: normalizedEmail, _id: { $ne: userId } });
+      if (existed) {
+        return res.status(400).json({ success: false, message: 'Email đã được sử dụng' });
+      }
+      user.email = normalizedEmail;
+    }
+
+    if (vai_tro !== undefined) {
+      user.vai_tro = vai_tro === 'admin' ? 'admin' : 'user';
+    }
+
+    if (is_locked !== undefined) {
+      user.is_locked = Boolean(is_locked);
+    }
+
+    if (mat_khau) {
+      user.mat_khau = mat_khau;
+    }
+
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Cập nhật user thành công',
+      data: {
+        _id: user._id,
+        ho_ten: user.ho_ten,
+        email: user.email,
+        vai_tro: user.vai_tro,
+        is_locked: user.is_locked,
+        ngay_tao: user.ngay_tao,
+      },
+    });
+  } catch (error) {
+    console.error('❌ Lỗi cập nhật user:', error.message);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+// Xóa user (chỉ admin)
+const deleteUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const currentUser = await User.findById(req.userId);
+    if (!currentUser || currentUser.vai_tro !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied - Admin only',
+      });
+    }
+
+    if (String(userId) === String(req.userId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Không thể xóa tài khoản đang đăng nhập',
+      });
+    }
+
+    const targetUser = await User.findById(userId);
+    if (!targetUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'User không tồn tại',
+      });
+    }
+
+    if (targetUser.vai_tro === 'admin') {
+      return res.status(400).json({
+        success: false,
+        message: 'Không thể xóa tài khoản admin',
+      });
+    }
+
+    await User.findByIdAndDelete(userId);
+
+    res.json({
+      success: true,
+      message: 'Xóa user thành công',
+    });
+  } catch (error) {
+    console.error('❌ Lỗi xóa user:', error.message);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 // Đổi mật khẩu
 const changePassword = async (req, res) => {
   try {
@@ -319,5 +497,8 @@ module.exports = {
   getProfile,
   getAllUsers,
   lockUser,
+  createUser,
+  updateUser,
+  deleteUser,
   changePassword,
 };

@@ -48,6 +48,7 @@ const NotificationsPage = () => {
   const [controlDetail, setControlDetail] = useState(null);
   const [controlDetailLoading, setControlDetailLoading] = useState(false);
   const [sendingReminder, setSendingReminder] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const groupPickerRef = useRef(null);
 
   const { register, handleSubmit, reset, watch, setValue } = useForm({ defaultValues: defaultFormValues });
@@ -215,6 +216,16 @@ const NotificationsPage = () => {
     });
   }, [notifications, searchTerm, activeNotificationTab]);
 
+  const ITEMS_PER_PAGE = 8;
+  const totalPages = Math.max(1, Math.ceil(filteredNotifications.length / ITEMS_PER_PAGE));
+  const currentPageSafe = Math.min(currentPage, totalPages);
+  const startIndex = (currentPageSafe - 1) * ITEMS_PER_PAGE;
+  const paginatedNotifications = filteredNotifications.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, activeNotificationTab]);
+
   const loadControlDetail = async (notification) => {
     if (notification.loai !== 'kiem_soat') {
       return;
@@ -306,7 +317,7 @@ const NotificationsPage = () => {
 
   return (
     <AdminLayout>
-      <div className="space-y-6">
+      <div className="relative min-h-full space-y-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="flex items-center gap-3 text-3xl font-bold text-gray-900">
@@ -412,7 +423,7 @@ const NotificationsPage = () => {
                   </div>
                 </div>
 
-                {doiTuongNhan === 'group' && (
+                {doiTuongNhan === 'group' && loaiThongBao !== 'kiem_soat' && (
                   <div ref={groupPickerRef} className="relative lg:col-span-2">
                     <label className="mb-2 block text-sm font-semibold text-gray-700">
                       Nhóm người nhận <span className="text-red-600">*</span>
@@ -614,6 +625,7 @@ const NotificationsPage = () => {
           ) : filteredNotifications.length === 0 ? (
             <div className="p-8 text-center text-gray-500">Chưa có thông báo nào.</div>
           ) : (
+            <>
             <table className="w-full">
               <thead className="bg-gray-50 border-b">
                 <tr>
@@ -628,7 +640,7 @@ const NotificationsPage = () => {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {filteredNotifications.map((notification) => (
+                {paginatedNotifications.map((notification) => (
                   <tr
                     key={notification._id}
                     className={`hover:bg-gray-50 ${notification.loai === 'kiem_soat' ? 'cursor-pointer' : ''}`}
@@ -682,6 +694,30 @@ const NotificationsPage = () => {
                 ))}
               </tbody>
             </table>
+            {filteredNotifications.length > 0 && totalPages > 1 && (
+              <div className="flex items-center justify-between border-t bg-gray-50 px-6 py-4">
+                <div className="text-sm text-gray-600">
+                  Trang <span className="font-semibold">{currentPageSafe}</span> / <span className="font-semibold">{totalPages}</span>
+                  <span className="ml-2">({filteredNotifications.length} thông báo)</span>
+                </div>
+                <div className="flex gap-1">
+                  {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`min-w-9 rounded px-3 py-1 text-sm font-medium transition ${
+                        currentPageSafe === page
+                          ? 'bg-green-600 text-white'
+                          : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            </>
           )}
         </div>
 
@@ -711,11 +747,15 @@ const NotificationsPage = () => {
         )}
 
         {selectedControlNotification && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="absolute inset-0 bg-black/50" onClick={() => {
-              setSelectedControlNotification(null);
-              setControlDetail(null);
-            }} />
+          <div
+            className="absolute inset-0 z-50 flex items-center justify-center"
+            onClick={(event) => {
+              if (event.target === event.currentTarget) {
+                setSelectedControlNotification(null);
+                setControlDetail(null);
+              }
+            }}
+          >
             <div className="relative z-10 mx-4 w-full max-w-5xl rounded-2xl bg-white p-6 shadow-2xl">
               <div className="mb-5 flex items-start justify-between gap-4">
                 <div>

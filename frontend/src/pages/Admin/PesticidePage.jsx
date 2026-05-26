@@ -15,6 +15,7 @@ const PesticidePage = () => {
   const [modal_sua, setModalSua] = useState(false);
   const [selected_id, setSelectedId] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
   
   const [form_data, setFormData] = useState({
     ten_thuoc: '',
@@ -151,6 +152,16 @@ const PesticidePage = () => {
     pest.ten_thuoc?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const ITEMS_PER_PAGE = 8;
+  const totalPages = Math.max(1, Math.ceil(filteredPesticides.length / ITEMS_PER_PAGE));
+  const currentPageSafe = Math.min(currentPage, totalPages);
+  const startIndex = (currentPageSafe - 1) * ITEMS_PER_PAGE;
+  const paginatedPesticides = filteredPesticides.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
   return (
     <AdminLayout>
       <div>
@@ -194,8 +205,8 @@ const PesticidePage = () => {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {filteredPesticides.length > 0 ? (
-                  filteredPesticides.map((pest) => (
+                {paginatedPesticides.length > 0 ? (
+                  paginatedPesticides.map((pest) => (
                     <tr key={pest._id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 w-96 max-w-96">
                         <span className="block truncate text-gray-900 font-medium" title={pest.ten_thuoc}>
@@ -245,6 +256,29 @@ const PesticidePage = () => {
                 )}
               </tbody>
             </table>
+            {filteredPesticides.length > 0 && totalPages > 1 && (
+              <div className="flex items-center justify-between border-t bg-gray-50 px-6 py-4">
+                <div className="text-sm text-gray-600">
+                  Trang <span className="font-semibold">{currentPageSafe}</span> / <span className="font-semibold">{totalPages}</span>
+                  <span className="ml-2">({filteredPesticides.length} thuốc)</span>
+                </div>
+                <div className="flex gap-1">
+                  {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`min-w-9 rounded px-3 py-1 text-sm font-medium transition ${
+                        currentPageSafe === page
+                          ? 'bg-green-600 text-white'
+                          : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

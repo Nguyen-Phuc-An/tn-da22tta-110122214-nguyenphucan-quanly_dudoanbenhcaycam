@@ -42,6 +42,19 @@ const CONFIDENCE_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e'];
 
 const formatNumber = (value) => Number(value || 0).toLocaleString('vi-VN');
 const formatPercent = (value) => `${Number(value || 0).toFixed(1)}%`;
+const getMonthKeyFromDate = (dateValue) => {
+  if (!dateValue) return '';
+  const parsed = new Date(dateValue);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}`;
+};
+
+const formatMonthLabel = (monthKey) => {
+  if (!monthKey) return 'N/A';
+  const [year, month] = monthKey.split('-');
+  if (!year || !month) return monthKey;
+  return `${month}/${year}`;
+};
 
 const quickActions = [
   {
@@ -129,6 +142,10 @@ const AdminDashboardPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [recentPage, setRecentPage] = useState(1);
+  const [selectedDiseaseMonth, setSelectedDiseaseMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
   const RECENT_PAGE_SIZE = 10;
 
   useEffect(() => {
@@ -217,6 +234,36 @@ const AdminDashboardPage = () => {
   const summary = mlStatus?.summary || {};
   const trainingResults = mlStatus?.trainingResults || null;
   const evaluation = mlStatus?.evaluation || null;
+  const testMetrics = evaluation?.test || null;
+
+  const diseaseMonthOptions = useMemo(() => {
+    const now = new Date();
+    const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const monthSet = new Set([currentMonthKey]);
+
+    predictions.forEach((item) => {
+      const monthKey = getMonthKeyFromDate(item.ngay_du_doan);
+      if (monthKey) monthSet.add(monthKey);
+    });
+
+    return Array.from(monthSet)
+      .sort((a, b) => b.localeCompare(a))
+      .map((value) => ({
+        value,
+        label: formatMonthLabel(value),
+      }));
+  }, [predictions]);
+
+  const diseaseDistributionForMonth = useMemo(() => {
+    const monthPredictions = predictions.filter(
+      (item) => getMonthKeyFromDate(item.ngay_du_doan) === selectedDiseaseMonth
+    );
+
+    return {
+      items: groupByDisease(monthPredictions),
+      total: monthPredictions.length,
+    };
+  }, [predictions, selectedDiseaseMonth]);
 
   const StatCard = ({ icon, label, value, color }) => (
     <div className={`bg-white rounded-lg shadow p-6 border-l-4 ${color} hover:shadow-lg transition`}>
@@ -265,11 +312,11 @@ const AdminDashboardPage = () => {
             </div>
             <div className="grid grid-cols-2 gap-3 text-sm text-slate-200">
               <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                <div className="text-xs text-slate-400">Prediction API</div>
+                <div className="text-xs text-slate-400">API dự đoán</div>
                 <div className="mt-1 font-semibold">{apiLatency.predictions} ms</div>
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                <div className="text-xs text-slate-400">ML Status API</div>
+                <div className="text-xs text-slate-400">API trạng thái ML</div>
                 <div className="mt-1 font-semibold">{apiLatency.mlStatus} ms</div>
               </div>
             </div>
@@ -283,10 +330,10 @@ const AdminDashboardPage = () => {
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <StatCard icon={<FaUsers />} label="Total Users" value={stats.users} color="border-gray-900" />
-          <StatCard icon={<FaLeaf />} label="Total Gardens" value={stats.gardens} color="border-gray-900" />
-          <StatCard icon={<FaVirus />} label="Total Diseases" value={stats.diseases} color="border-gray-900" />
-          <StatCard icon={<FaCamera />} label="Total Predictions" value={stats.predictions} color="border-gray-900" />
+          <StatCard icon={<FaUsers />} label="Tổng người dùng" value={stats.users} color="border-gray-900" />
+          <StatCard icon={<FaLeaf />} label="Tổng khu vườn" value={stats.gardens} color="border-gray-900" />
+          <StatCard icon={<FaVirus />} label="Tổng bệnh cây" value={stats.diseases} color="border-gray-900" />
+          <StatCard icon={<FaCamera />} label="Tổng dự đoán" value={stats.predictions} color="border-gray-900" />
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -306,9 +353,9 @@ const AdminDashboardPage = () => {
             <p className="mt-2 text-xs text-slate-500">Từ thoi_gian_xu_ly_ms</p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm border-t-4 border-t-gray-900">
-            <p className="text-sm font-medium text-slate-500">Tổng ảnh train</p>
+            <p className="text-sm font-medium text-slate-500">Tổng ảnh huấn luyện</p>
             <p className="mt-2 text-3xl font-bold text-slate-900">{formatNumber(summary.total_images)}</p>
-            <p className="mt-2 text-xs text-slate-500">Dữ liệu từ /api/ml/status</p>
+            <p className="mt-2 text-xs text-slate-500">Lấy từ /api/ml/status</p>
           </div>
         </div>
 
@@ -319,7 +366,6 @@ const AdminDashboardPage = () => {
                 <h2 className="text-lg font-bold text-slate-900">Số lần dự đoán theo ngày</h2>
                 <p className="text-sm text-slate-500">Dựa trên lịch sử dự đoán gần nhất</p>
               </div>
-              <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">API: /api/predictions</div>
             </div>
             <div className="h-80 w-full">
               <ResponsiveContainer width="100%" height="100%">
@@ -336,8 +382,8 @@ const AdminDashboardPage = () => {
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="mb-4">
-              <h2 className="text-lg font-bold text-slate-900">Confidence buckets</h2>
-              <p className="text-sm text-slate-500">Tỷ lệ các mức tin cậy</p>
+              <h2 className="text-lg font-bold text-slate-900">Phân bố độ tin cậy</h2>
+              <p className="text-sm text-slate-500">Tỷ lệ các mức confidence</p>
             </div>
             <div className="h-80 w-full">
               <ResponsiveContainer width="100%" height="100%">
@@ -360,20 +406,38 @@ const AdminDashboardPage = () => {
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-bold text-slate-900">Phân bố bệnh dự đoán</h2>
-                <p className="text-sm text-slate-500">Top các bệnh xuất hiện nhiều nhất</p>
+                <p className="text-sm text-slate-500">
+                  Theo tháng {formatMonthLabel(selectedDiseaseMonth)} • {formatNumber(diseaseDistributionForMonth.total)} lượt dự đoán
+                </p>
               </div>
-              <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">/api/diseases</div>
+              <div className="flex items-center gap-2">
+                <select
+                  value={selectedDiseaseMonth}
+                  onChange={(event) => setSelectedDiseaseMonth(event.target.value)}
+                  className="rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700"
+                >
+                  {diseaseMonthOptions.map((month) => (
+                    <option key={month.value} value={month.value}>{month.label}</option>
+                  ))}
+                </select>
+              </div>
             </div>
             <div className="h-80 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={dashboard.byDisease.slice(0, 8)}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="name" tick={{ fill: '#475569', fontSize: 12 }} interval={0} angle={-15} textAnchor="end" height={60} />
-                  <YAxis tick={{ fill: '#475569', fontSize: 12 }} />
-                  <Tooltip />
-                  <Bar dataKey="value" fill="#16a34a" radius={[6, 6, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              {diseaseDistributionForMonth.items.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={diseaseDistributionForMonth.items.slice(0, 8)}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis dataKey="name" tick={{ fill: '#475569', fontSize: 12 }} interval={0} angle={-15} textAnchor="end" height={60} />
+                    <YAxis tick={{ fill: '#475569', fontSize: 12 }} />
+                    <Tooltip />
+                    <Bar dataKey="value" fill="#16a34a" radius={[6, 6, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 text-sm text-slate-500">
+                  Không có dữ liệu dự đoán trong tháng {formatMonthLabel(selectedDiseaseMonth)}.
+                </div>
+              )}
             </div>
           </div>
 
@@ -383,7 +447,7 @@ const AdminDashboardPage = () => {
                 <h2 className="text-lg font-bold text-slate-900">Dataset / Model health</h2>
                 <p className="text-sm text-slate-500">Dữ liệu từ /api/ml/status</p>
               </div>
-              <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">retrain summary</div>
+              <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">Tổng hợp retrain</div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -407,20 +471,30 @@ const AdminDashboardPage = () => {
 
             <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
               <div className="rounded-2xl border border-slate-200 p-4">
-                <div className="flex items-center gap-2 text-sm font-semibold text-slate-700"><FaShieldAlt /> Last retrain</div>
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-700"><FaShieldAlt /> Lần huấn luyện gần nhất</div>
                 <div className="mt-2 text-sm text-slate-500">
                   {trainingResults
                     ? `Val Acc: ${formatPercent(trainingResults.val_accuracy * 100)} | Val Loss: ${Number(trainingResults.val_loss || 0).toFixed(4)}`
-                    : 'Chưa có report retrain gần nhất'}
+                    : 'Chưa có báo cáo huấn luyện gần nhất'}
                 </div>
               </div>
               <div className="rounded-2xl border border-slate-200 p-4">
-                <div className="flex items-center gap-2 text-sm font-semibold text-slate-700"><FaThermometerHalf /> Validation metrics</div>
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-700"><FaThermometerHalf /> Chỉ số validation</div>
                 <div className="mt-2 text-sm text-slate-500">
                   {evaluation
-                    ? `F1 wei: ${formatPercent(evaluation.f1_weighted * 100)} | Recall wei: ${formatPercent(evaluation.recall_weighted * 100)}`
-                    : 'Chưa có evaluation gần nhất'}
+                    ? `F1 weighted: ${formatPercent(evaluation.f1_weighted * 100)} | Recall weighted: ${formatPercent(evaluation.recall_weighted * 100)}`
+                    : 'Chưa có đánh giá validation gần nhất'}
                 </div>
+                <p className="mt-1 text-xs text-slate-400">Dùng để theo dõi trong lúc huấn luyện và chọn model.</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 p-4 md:col-span-2">
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-700"><FaCheck /> Chỉ số test</div>
+                <div className="mt-2 text-sm text-slate-500">
+                  {testMetrics
+                    ? `F1 weighted: ${formatPercent(testMetrics.f1_weighted * 100)} | Recall weighted: ${formatPercent(testMetrics.recall_weighted * 100)} | Precision weighted: ${formatPercent(testMetrics.precision_weighted * 100)}`
+                    : 'Chưa có đánh giá test gần nhất'}
+                </div>
+                <p className="mt-1 text-xs text-slate-400">Đây là kết quả cuối cùng trên dữ liệu chưa dùng để huấn luyện.</p>
               </div>
             </div>
           </div>

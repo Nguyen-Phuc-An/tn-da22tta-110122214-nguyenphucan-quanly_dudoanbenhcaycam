@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import AuthLayout from '../components/Layout/AuthLayout';
 import authService from '../services/authService';
 import { FaEye, FaEyeSlash, FaLeaf } from 'react-icons/fa';
+import loginBackground from '../components/User/Background Login.png';
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -47,11 +48,12 @@ const LoginPage = () => {
     <AuthLayout
       title={<span><FaLeaf className="inline mr-2" size={24} /> Quản lý Vườn Cây</span>}
       subtitle="Nhận diện bệnh cây bằng AI"
+      backgroundImage={loginBackground}
     >
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         {/* Email */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-green-700 mb-2">
             Email
           </label>
           <input
@@ -73,7 +75,7 @@ const LoginPage = () => {
 
         {/* Password */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-green-700 mb-2">
             Mật khẩu
           </label>
           <div className="relative">
@@ -107,14 +109,6 @@ const LoginPage = () => {
           {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
         </button>
       </form>
-
-      {/* Link to Register */}
-      <div className="text-center text-sm text-gray-600">
-        Chưa có tài khoản?{' '}
-        <Link to="/register" className="auth-link">
-          Đăng ký ngay
-        </Link>
-      </div>
     </AuthLayout>
   );
 };

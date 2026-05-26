@@ -42,6 +42,7 @@ const HomePage = () => {
     seasons: [],
   });
   const [allPredictions, setAllPredictions] = useState([]);
+  const [allLogs, setAllLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [notifications, setNotifications] = useState([]);
   const [notificationsLoading, setNotificationsLoading] = useState(true);
@@ -88,23 +89,42 @@ const HomePage = () => {
       const logs = logsRes.data.data || [];
       const seasons = seasonsRes.data.data || [];
 
+      const extractId = (value) => {
+        if (value === null || value === undefined) return '';
+        if (typeof value === 'string' || typeof value === 'number') return String(value);
+        if (typeof value === 'object') return String(value._id || value.id || '');
+        return '';
+      };
+
       const currentUserId = currentUser?._id ? String(currentUser._id) : '';
       const userPredictions = currentUserId
-        ? predictions.filter((prediction) => String(prediction.user_id || '') === currentUserId)
+        ? predictions.filter((prediction) => extractId(prediction.user_id) === currentUserId)
         : predictions;
 
+      const allGardens = gardensRes.data.data || [];
       const userGardens = currentUserId
-        ? (gardensRes.data.data || []).filter((garden) => String(garden.user_id || '') === currentUserId)
-        : (gardensRes.data.data || []);
+        ? allGardens.filter((garden) => extractId(garden.user_id) === currentUserId)
+        : allGardens;
 
-      const userLogs = currentUserId
-        ? logs.filter((log) => String(log.garden_id?.user_id || log.user_id || '') === currentUserId)
-        : logs;
+      const userGardenIds = new Set(
+        userGardens.map((garden) => extractId(garden._id)).filter(Boolean)
+      );
 
-      const userGardenIds = new Set(userGardens.map((garden) => String(garden._id)));
-      const userExpenses = currentUserId
-        ? (expensesRes.data.data || []).filter((expense) => userGardenIds.has(String(expense.garden_id?._id || expense.garden_id || '')))
-        : (expensesRes.data.data || []);
+      // /api/logs đã trả logs theo user hiện tại ở backend, không lọc lại theo userGardens
+      const userLogs = logs;
+
+      // Fallback nếu thiếu userGardens metadata
+      if (userGardenIds.size === 0) {
+        userLogs.forEach((log) => {
+          const logGardenId = extractId(log.garden_id);
+          if (logGardenId) userGardenIds.add(logGardenId);
+        });
+      }
+
+      const allExpenses = expensesRes.data.data || [];
+      const userExpenses = userGardenIds.size > 0
+        ? allExpenses.filter((expense) => userGardenIds.has(extractId(expense.garden_id)))
+        : allExpenses;
 
       // Calculate diseases
       const diseaseCount = {};
@@ -125,6 +145,7 @@ const HomePage = () => {
       });
 
       setAllPredictions(userPredictions);
+      setAllLogs(userLogs);
 
       setRecentData({
         logs: userLogs.slice(0, 5),
@@ -188,10 +209,16 @@ const HomePage = () => {
     return `http://localhost:5000${gradCamPath}`;
   };
 
+  const getConfidencePercent = (confidence) => {
+    if (confidence === null || confidence === undefined) return 0;
+    const numeric = Number(confidence) || 0;
+    return numeric <= 1 ? Math.round(numeric * 100) : Math.round(numeric);
+  };
+
   const chartData = useMemo(() => {
     const byDayMap = new Map();
     const byDiseaseMap = new Map();
-    const byGardenMap = new Map();
+    const activityByGardenMap = new Map();
     const confidenceBuckets = [
       { name: '0-39%', value: 0 },
       { name: '40-59%', value: 0 },
@@ -210,14 +237,16 @@ const HomePage = () => {
       const diseaseKey = prediction.ket_qua_benh || 'Không xác định';
       byDiseaseMap.set(diseaseKey, (byDiseaseMap.get(diseaseKey) || 0) + 1);
 
-      const gardenKey = prediction.user_id?.ho_ten || 'Chưa gắn user';
-      byGardenMap.set(gardenKey, (byGardenMap.get(gardenKey) || 0) + 1);
-
-      const confidence = Number(prediction.do_tin_cay || 0) * 100;
+      const confidence = getConfidencePercent(prediction.do_tin_cay);
       if (confidence < 40) confidenceBuckets[0].value += 1;
       else if (confidence < 60) confidenceBuckets[1].value += 1;
       else if (confidence < 80) confidenceBuckets[2].value += 1;
       else confidenceBuckets[3].value += 1;
+    });
+
+    allLogs.forEach((log) => {
+      const gardenName = log?.garden_id?.ten_vuon || 'Chưa gắn vườn';
+      activityByGardenMap.set(gardenName, (activityByGardenMap.get(gardenName) || 0) + 1);
     });
 
     return {
@@ -230,13 +259,13 @@ const HomePage = () => {
         .map(([name, value]) => ({ name, value }))
         .sort((a, b) => b.value - a.value)
         .slice(0, 6),
-      byGarden: Array.from(byGardenMap.entries())
+      activityByGarden: Array.from(activityByGardenMap.entries())
         .map(([name, value]) => ({ name, value }))
         .sort((a, b) => b.value - a.value)
         .slice(0, 6),
       confidenceBuckets,
     };
-  }, [allPredictions]);
+  }, [allPredictions, allLogs]);
 
   const chartColors = ['#ef4444', '#f97316', '#eab308', '#22c55e'];
 
@@ -281,7 +310,7 @@ const HomePage = () => {
                 <div>
                   <p className="text-2xl font-bold text-red-600 mb-2">{recentData.diseases[0].name}</p>
                   <p className="text-sm text-gray-700">
-                    Đã phát hiện <span className="font-bold">{recentData.diseases[0].count}</span> trường hợp. 
+                    Đã phát hiện <span className="font-bold">{recentData.diseases[0].count}</span> trường hợp.
                     Hãy để ý các vườn của bạn!
                   </p>
                 </div>
@@ -599,13 +628,13 @@ const HomePage = () => {
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
                   <h2 className="text-xl font-bold text-gray-900">Hoạt động theo vườn</h2>
-                  <p className="text-sm text-gray-500">Số lần dự đoán của từng vườn</p>
+                  <p className="text-sm text-gray-500">Số nhật ký canh tác theo từng vườn</p>
                 </div>
                 <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">Top 6</div>
               </div>
               <div className="h-72 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData.byGarden}>
+                  <BarChart data={chartData.activityByGarden}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                     <XAxis dataKey="name" tick={{ fill: '#475569', fontSize: 12 }} interval={0} angle={-15} textAnchor="end" height={60} />
                     <YAxis tick={{ fill: '#475569', fontSize: 12 }} />
@@ -655,11 +684,11 @@ const HomePage = () => {
                       <p className="font-semibold text-gray-900 text-sm">{pred.ket_qua_benh}</p>
                       <p className="text-xs text-gray-500">{pred.user_id?.ho_ten || 'N/A'}</p>
                       <div className="flex items-center gap-2 mt-1">
-                        <span className="text-xs font-bold text-green-600">{Math.round((pred.do_tin_cay || 0))}%</span>
+                        <span className="text-xs font-bold text-green-600">{getConfidencePercent(pred.do_tin_cay)}%</span>
                         <div className="flex-1 bg-gray-200 rounded-full h-1 overflow-hidden">
                           <div
                             className="bg-green-600 h-1"
-                            style={{ width: `${Math.min(pred.do_tin_cay || 0, 100)}%` }}
+                            style={{ width: `${Math.min(getConfidencePercent(pred.do_tin_cay), 100)}%` }}
                           />
                         </div>
                       </div>

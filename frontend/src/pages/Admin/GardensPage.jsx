@@ -13,7 +13,17 @@ const GardensPage = () => {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const { register, handleSubmit, reset, watch } = useForm();
+
+  const emptyGardenForm = {
+    ten_vuon: '',
+    dia_chi: '',
+    user_id: '',
+    dien_tich: '',
+    don_vi: 'm²',
+    so_cay: '',
+  };
 
   useEffect(() => {
     fetchGardens();
@@ -71,7 +81,10 @@ const GardensPage = () => {
 
   const handleEdit = (garden) => {
     setEditingId(garden._id);
-    reset(garden);
+    reset({
+      ...garden,
+      user_id: garden.user_id?._id || garden.user_id || '',
+    });
     setShowForm(true);
   };
 
@@ -94,6 +107,20 @@ const GardensPage = () => {
       garden.dia_diem?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const selectableUsers = users.filter(
+    (user) => String(user.vai_tro || user.role || '').toLowerCase() !== 'admin'
+  );
+
+  const ITEMS_PER_PAGE = 8;
+  const totalPages = Math.max(1, Math.ceil(filteredGardens.length / ITEMS_PER_PAGE));
+  const currentPageSafe = Math.min(currentPage, totalPages);
+  const startIndex = (currentPageSafe - 1) * ITEMS_PER_PAGE;
+  const paginatedGardens = filteredGardens.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
   return (
     <AdminLayout>
       <div>
@@ -103,7 +130,7 @@ const GardensPage = () => {
           <button
             onClick={() => {
               setEditingId(null);
-              reset();
+              reset(emptyGardenForm);
               setShowForm(!showForm);
             }}
             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center gap-2"
@@ -154,7 +181,7 @@ const GardensPage = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                   >
                     <option value="">Chọn người dùng</option>
-                    {users.map((user) => (
+                    {selectableUsers.map((user) => (
                       <option key={user._id} value={user._id}>
                         {user.ho_ten} ({user.email})
                       </option>
@@ -212,7 +239,7 @@ const GardensPage = () => {
                   type="button"
                   onClick={() => {
                     setShowForm(false);
-                    reset();
+                    reset(emptyGardenForm);
                     setEditingId(null);
                   }}
                   className="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition flex items-center justify-center gap-2"
@@ -242,6 +269,7 @@ const GardensPage = () => {
           ) : filteredGardens.length === 0 ? (
             <div className="p-8 text-center text-gray-600">Không tìm thấy vườn</div>
           ) : (
+            <>
             <table className="w-full">
               <thead className="bg-gray-50 border-b">
                 <tr>
@@ -266,7 +294,7 @@ const GardensPage = () => {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {filteredGardens.map((garden) => (
+                {paginatedGardens.map((garden) => (
                   <tr key={garden._id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-gray-900 font-medium">
@@ -311,6 +339,30 @@ const GardensPage = () => {
                 ))}
               </tbody>
             </table>
+            {filteredGardens.length > 0 && totalPages > 1 && (
+              <div className="flex items-center justify-between border-t bg-gray-50 px-6 py-4">
+                <div className="text-sm text-gray-600">
+                  Trang <span className="font-semibold">{currentPageSafe}</span> / <span className="font-semibold">{totalPages}</span>
+                  <span className="ml-2">({filteredGardens.length} vườn)</span>
+                </div>
+                <div className="flex gap-1">
+                  {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`min-w-9 rounded px-3 py-1 text-sm font-medium transition ${
+                        currentPageSafe === page
+                          ? 'bg-green-600 text-white'
+                          : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            </>
           )}
         </div>
 

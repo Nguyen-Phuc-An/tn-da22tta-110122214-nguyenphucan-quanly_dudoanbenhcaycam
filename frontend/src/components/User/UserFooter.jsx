@@ -99,9 +99,8 @@ const UserFooter = () => {
           </div>
         </div>
 
-        <div className="mt-10 pt-5 border-t border-white/15 flex flex-col md:flex-row md:items-center md:justify-between gap-3 text-sm text-white/75">
-          <p>© 2026 CitrusCare. Giảng viên hướng dẫn: [Tên giảng viên].</p>
-          <p>Hệ thống quản lý vườn cây và dự đoán bệnh trên cây có múi.</p>
+        <div className="mt-6 pt-3 border-t border-white/15 flex flex-col md:flex-row items-center justify-center text-center gap-3 text-sm text-white/75">
+          <p>© 2026 CitrusCare. Giảng viên hướng dẫn: Phạm Minh Đương.</p>
         </div>
       </div>
     </footer>

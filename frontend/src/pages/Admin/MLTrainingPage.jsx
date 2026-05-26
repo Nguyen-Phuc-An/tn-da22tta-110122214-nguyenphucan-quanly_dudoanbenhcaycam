@@ -177,6 +177,7 @@ const MLTrainingPage = () => {
   const diseasesData = trainingStatus.status || {};
   const summary = trainingStatus.summary || {};
   const evaluation = trainingStatus.evaluation || progress.metrics || null;
+  const testMetrics = evaluation?.test || null;
   const trainingResults = trainingStatus.trainingResults || progress.trainingResults || null;
 
   const formatPercent = (value) => `${(Number(value || 0) * 100).toFixed(2)}%`;
@@ -210,6 +211,38 @@ const MLTrainingPage = () => {
           weighted: evaluation.f1_weighted,
           accent: 'from-slate-900 to-slate-700',
           description: 'Chỉ số cân bằng giữa Precision và Recall',
+        },
+      ]
+    : [];
+
+  const testMetricCards = testMetrics
+    ? [
+        {
+          key: 'precision',
+          label: 'Precision',
+          icon: FaCheckCircle,
+          macro: testMetrics.precision_macro,
+          weighted: testMetrics.precision_weighted,
+          accent: 'from-green-600 to-green-700',
+          description: 'Độ đúng của các dự đoán bệnh dương tính trên tập test',
+        },
+        {
+          key: 'recall',
+          label: 'Recall',
+          icon: FaBalanceScale,
+          macro: testMetrics.recall_macro,
+          weighted: testMetrics.recall_weighted,
+          accent: 'from-slate-900 to-slate-700',
+          description: 'Khả năng phát hiện các trường hợp bệnh thực tế trên tập test',
+        },
+        {
+          key: 'f1',
+          label: 'F1-score',
+          icon: FaChartLine,
+          macro: testMetrics.f1_macro,
+          weighted: testMetrics.f1_weighted,
+          accent: 'from-slate-900 to-slate-700',
+          description: 'Chỉ số cân bằng giữa Precision và Recall trên tập test',
         },
       ]
     : [];
@@ -281,7 +314,7 @@ const MLTrainingPage = () => {
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gray-900 mb-2">Kết quả huấn luyện</p>
               <h2 className="text-2xl font-bold text-gray-900">Accuracy / Loss của lần train gần nhất</h2>
               <p className="text-sm text-gray-500 mt-1">
-                Hiển thị giá trị cuối cùng của epoch cuối và giá trị validation tốt nhất trong lần huấn luyện gần nhất.
+                Hiển thị giá trị cuối cùng của epoch cuối và các chỉ số quan trọng của lần huấn luyện gần nhất.
               </p>
             </div>
             <div className="text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-full px-4 py-2 self-start md:self-auto">
@@ -355,13 +388,10 @@ const MLTrainingPage = () => {
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3 mb-5">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gray-900 mb-2">Đánh giá mô hình</p>
-              <h2 className="text-2xl font-bold text-gray-900">Precision / Recall / F1-score</h2>
-              <p className="text-sm text-gray-500 mt-1">
-                Tính trên tập validation sau khi hoàn tất huấn luyện hoặc đào tạo lại.
-              </p>
+              <h2 className="text-2xl font-bold text-gray-900">Validation sau khi huấn luyện</h2>
             </div>
             <div className="text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-full px-4 py-2 self-start md:self-auto">
-              Macro average là chỉ số chính
+              Tập validation 
             </div>
           </div>
 
@@ -413,6 +443,71 @@ const MLTrainingPage = () => {
           ) : (
             <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-6 text-gray-600">
               Chưa có dữ liệu đánh giá. Hãy chạy huấn luyện lại để hệ thống tính Precision, Recall và F1-score.
+            </div>
+          )}
+        </div>
+
+        {/* Test Metrics */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3 mb-5">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gray-900 mb-2">Đánh giá cuối cùng</p>
+              <h2 className="text-2xl font-bold text-gray-900">Test sau khi huấn luyện</h2>
+            </div>
+            <div className="text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-full px-4 py-2 self-start md:self-auto">
+              Tập test
+            </div>
+          </div>
+
+          {testMetrics ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {testMetricCards.map((item) => {
+                const Icon = item.icon;
+
+                return (
+                  <div key={item.key} className="rounded-2xl border border-gray-200 overflow-hidden bg-gray-50 shadow-sm">
+                    <div className="bg-gray-900 text-white px-5 py-4 flex items-center justify-between">
+                      <div>
+                        <h3 className="text-xl font-bold">{item.label}</h3>
+                      </div>
+                      <Icon className="text-2xl opacity-90" />
+                    </div>
+                    <div className="p-5">
+                      <div className="space-y-3">
+                        <div>
+                          <div className="mb-1 flex items-center justify-between text-xs text-gray-500">
+                            <span>Macro</span>
+                            <span>{(item.macro * 100).toFixed(2)}%</span>
+                          </div>
+                          <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
+                            <div
+                              className="h-full rounded-full bg-green-600"
+                              style={{ width: `${Math.max(0, Math.min(item.macro * 100, 100))}%` }}
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <div className="mb-1 flex items-center justify-between text-xs text-gray-500">
+                            <span>Weighted</span>
+                            <span>{(item.weighted * 100).toFixed(2)}%</span>
+                          </div>
+                          <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
+                            <div
+                              className="h-full rounded-full bg-gray-500"
+                              style={{ width: `${Math.max(0, Math.min(item.weighted * 100, 100))}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      <p className="mt-4 text-sm text-gray-500 leading-relaxed">{item.description}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-6 text-gray-600">
+              Chưa có dữ liệu test. Hãy chạy huấn luyện lại để hệ thống tính kết quả cuối cùng trên tập test.
             </div>
           )}
         </div>

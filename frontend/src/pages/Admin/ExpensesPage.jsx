@@ -17,6 +17,8 @@ const ExpensesPage = () => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedGarden, setSelectedGarden] = useState(null);
   const [selectedExpense, setSelectedExpense] = useState(null);
+  const [userSearchTerm, setUserSearchTerm] = useState('');
+  const [gardenSearchTerm, setGardenSearchTerm] = useState('');
 
   useEffect(() => {
     fetchAllData();
@@ -125,13 +127,29 @@ const ExpensesPage = () => {
 
   // Get sorted seasons
   const getSortedSeasons = () => {
-    const statusOrder = { 'Đang diễn ra': 0, 'Đã kết thúc': 1, 'Sắp diễn ra': 2 };
-    return [...seasons].sort((a, b) => {
-      // Sort by year DESC (newest first)
-      if (a.nam !== b.nam) return b.nam - a.nam;
-      // Then by status
-      return (statusOrder[a.trang_thai] || 3) - (statusOrder[b.trang_thai] || 3);
-    });
+    const getSeasonEndTime = (season) => {
+      const year = Number(season?.nam);
+      const startMonth = Number(season?.thang_bat_dau);
+      const endMonth = Number(season?.thang_ket_thuc);
+
+      if (!year || !startMonth || !endMonth) {
+        return new Date(year || 0, 11, 31, 23, 59, 59, 999).getTime();
+      }
+
+      const endYear = endMonth < startMonth ? year + 1 : year;
+      return new Date(endYear, endMonth, 0, 23, 59, 59, 999).getTime();
+    };
+
+    const activeSeasons = seasons
+      .filter((season) => season.trang_thai === 'Đang diễn ra')
+      .sort((a, b) => getSeasonEndTime(b) - getSeasonEndTime(a));
+
+    const endedSeasons = seasons
+      .filter((season) => season.trang_thai === 'Đã kết thúc')
+      .sort((a, b) => getSeasonEndTime(b) - getSeasonEndTime(a));
+
+    // Chỉ hiển thị: đang diễn ra trước, sau đó tới các mùa đã kết thúc; ẩn mùa sắp diễn ra.
+    return [...activeSeasons, ...endedSeasons];
   };
 
   const handleSelectSeason = (season) => {
@@ -139,17 +157,21 @@ const ExpensesPage = () => {
     setViewMode('user');
     setSelectedUser(null);
     setSelectedGarden(null);
+    setUserSearchTerm('');
+    setGardenSearchTerm('');
   };
 
   const handleSelectUser = (user) => {
     setSelectedUser(user._id);
     setViewMode('gardens');
+    setGardenSearchTerm('');
   };
 
   const handleBackFromUser = () => {
     setViewMode('season');
     setSelectedSeason(null);
     setSelectedUser(null);
+    setUserSearchTerm('');
   };
 
   const handleSelectGarden = (garden) => {
@@ -161,6 +183,7 @@ const ExpensesPage = () => {
     setViewMode('user');
     setSelectedUser(null);
     setSelectedGarden(null);
+    setGardenSearchTerm('');
   };
 
   const handleBackFromExpenses = () => {
@@ -189,6 +212,36 @@ const ExpensesPage = () => {
   };
 
   const nonAdminUsers = users.filter((user) => String(user.vai_tro || user.role || '').toLowerCase() !== 'admin');
+  const filteredUsers = nonAdminUsers.filter((user) => {
+    const query = userSearchTerm.toLowerCase();
+    return (
+      user.ten?.toLowerCase().includes(query) ||
+      user.ho_ten?.toLowerCase().includes(query) ||
+      user.email?.toLowerCase().includes(query)
+    );
+  });
+
+  const sortedFilteredUsers = filteredUsers
+    .map((user) => {
+      const total = getUserTotalForSeason(user._id);
+      const userGardens = gardens.filter(
+        (g) => g.user_id?._id === user._id || g.user_id === user._id
+      );
+
+      return {
+        ...user,
+        _displayName: user.ten || user.ho_ten || 'Không tên',
+        _totalSeasonExpense: total,
+        _gardenCount: userGardens.length,
+      };
+    })
+    .sort((a, b) => {
+      if (b._totalSeasonExpense !== a._totalSeasonExpense) {
+        return b._totalSeasonExpense - a._totalSeasonExpense;
+      }
+
+      return a._displayName.localeCompare(b._displayName, 'vi', { sensitivity: 'base' });
+    });
 
   // Render SEASON LIST view
   const renderSeasonListView = () => (
@@ -240,34 +293,57 @@ const ExpensesPage = () => {
         <button onClick={handleBackFromUser} className="p-2 hover:bg-gray-200 rounded-lg">
           <FaArrowLeft size={20} />
         </button>
-        <h2 className="text-2xl font-bold">Danh sách Người dùng - {selectedSeason?.ten_mua_vu} ({selectedSeason?.nam})</h2>
+        <div>
+          <h2 className="text-2xl font-bold">Danh sách Người dùng - {selectedSeason?.ten_mua_vu} ({selectedSeason?.nam})</h2>
+          <p className="text-sm text-gray-500 mt-1">Xem người dùng dưới dạng bảng và tìm nhanh theo tên hoặc email.</p>
+        </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {nonAdminUsers.map((user) => {
-          const total = getUserTotalForSeason(user._id);
-          const userGardens = gardens.filter(
-            (g) => g.user_id?._id === user._id || g.user_id === user._id
-          );
-          return (
-            <div
-              key={user._id}
-              onClick={() => handleSelectUser(user)}
-              className="p-4 bg-white border-l-4 border-green-500 rounded-lg hover:shadow-md cursor-pointer transform hover:scale-105 transition-all"
-            >
-              <div className="flex justify-between items-start">
-                <div>
-                  <h3 className="font-bold text-lg">{user.ten}</h3>
-                  <p className="text-gray-600 text-sm">{user.email}</p>
-                </div>
-                <FaChevronRight className="text-gray-400 mt-1" />
-              </div>
-              <div className="mt-3 pt-3 border-t space-y-1 text-sm">
-                <p className="text-gray-600">Số vườn: <span className="font-semibold">{userGardens.length}</span></p>
-                <p className="text-gray-600">Tổng chi phí: <span className="font-bold text-green-600">{total.toLocaleString('vi-VN')} đ</span></p>
-              </div>
-            </div>
-          );
-        })}
+      <div className="mb-4 flex items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
+        <input
+          type="text"
+          value={userSearchTerm}
+          onChange={(e) => setUserSearchTerm(e.target.value)}
+          placeholder="Tìm theo tên hoặc email..."
+          className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200"
+        />
+        <span className="whitespace-nowrap text-sm text-gray-500">{filteredUsers.length} người dùng</span>
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Người dùng</th>
+              <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Email</th>
+              <th className="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-600">Số vườn</th>
+              <th className="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-600">Tổng chi phí</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100 bg-white">
+            {sortedFilteredUsers.length > 0 ? (
+              sortedFilteredUsers.map((user) => (
+                <tr
+                  key={user._id}
+                  onClick={() => handleSelectUser(user)}
+                  className="cursor-pointer transition hover:bg-green-50"
+                >
+                  <td className="px-6 py-4">
+                    <div className="font-semibold text-gray-900">{user._displayName}</div>
+                  </td>
+                  <td className="px-6 py-4 text-gray-600">{user.email}</td>
+                  <td className="px-6 py-4 text-center text-gray-900">{user._gardenCount}</td>
+                  <td className="px-6 py-4 text-center font-semibold text-green-600">{user._totalSeasonExpense.toLocaleString('vi-VN')} đ</td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="4" className="px-6 py-10 text-center text-gray-500">
+                  Không tìm thấy người dùng phù hợp
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -276,6 +352,13 @@ const ExpensesPage = () => {
   const renderGardensListView = () => {
     const filteredGardens = getGardensForUserInSeason();
     const userName = users.find(u => u._id === selectedUser)?.ten || users.find(u => u._id === selectedUser)?.ho_ten;
+    const searchedGardens = filteredGardens.filter((garden) => {
+      const query = gardenSearchTerm.toLowerCase();
+      return (
+        garden.ten_vuon?.toLowerCase().includes(query) ||
+        garden.dia_diem?.toLowerCase().includes(query)
+      );
+    });
 
     return (
       <div>
@@ -283,44 +366,66 @@ const ExpensesPage = () => {
           <button onClick={handleBackFromGardens} className="p-2 hover:bg-gray-200 rounded-lg">
             <FaArrowLeft size={20} />
           </button>
-          <h2 className="text-2xl font-bold">Danh sách Vườn - {userName}</h2>
+          <div>
+            <h2 className="text-2xl font-bold">Danh sách Vườn - {userName}</h2>
+            <p className="text-sm text-gray-500 mt-1">Xem danh sách vườn dưới dạng bảng và tìm nhanh theo tên vườn hoặc địa điểm.</p>
+          </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredGardens.length > 0 ? (
-            filteredGardens.map((garden) => {
-              let gardenExpenses = expenses.filter(
-                (e) => {
-                  const gardenMatch = e.garden_id?._id === garden._id || e.garden_id === garden._id;
-                  const seasonMatch = e.season_id?._id === selectedSeason._id || e.season_id === selectedSeason._id;
-                  return gardenMatch && seasonMatch;
-                }
-              );
-              const total = gardenExpenses.reduce((sum, e) => sum + (e.so_tien || 0), 0);
-              return (
-                <div
-                  key={garden._id}
-                  onClick={() => handleSelectGarden(garden)}
-                  className="p-4 bg-white border-l-4 border-purple-500 rounded-lg hover:shadow-md cursor-pointer transform hover:scale-105 transition-all"
-                >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-bold text-lg">{garden.ten_vuon}</h3>
-                      <p className="text-gray-600 text-sm">Địa điểm: {garden.dia_diem}</p>
-                    </div>
-                    <FaChevronRight className="text-gray-400 mt-1" />
-                  </div>
-                  <div className="mt-3 pt-3 border-t space-y-1 text-sm">
-                    <p className="text-gray-600">Số chi phí: <span className="font-semibold">{gardenExpenses.length}</span></p>
-                    <p className="text-gray-600">Tổng chi phí: <span className="font-bold text-purple-600">{total.toLocaleString('vi-VN')} đ</span></p>
-                  </div>
-                </div>
-              );
-            })
-          ) : (
-            <div className="col-span-full text-center py-8 text-gray-500">
-              Không có vườn nào
-            </div>
-          )}
+        <div className="mb-4 flex items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
+          <input
+            type="text"
+            value={gardenSearchTerm}
+            onChange={(e) => setGardenSearchTerm(e.target.value)}
+            placeholder="Tìm theo tên vườn hoặc địa điểm..."
+            className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200"
+          />
+          <span className="whitespace-nowrap text-sm text-gray-500">{searchedGardens.length} vườn</span>
+        </div>
+
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Tên vườn</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Địa điểm</th>
+                <th className="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-600">Số chi phí</th>
+                <th className="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-600">Tổng chi phí</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 bg-white">
+              {searchedGardens.length > 0 ? (
+                searchedGardens.map((garden) => {
+                  const gardenExpenses = expenses.filter((e) => {
+                    const gardenMatch = e.garden_id?._id === garden._id || e.garden_id === garden._id;
+                    const seasonMatch = e.season_id?._id === selectedSeason._id || e.season_id === selectedSeason._id;
+                    return gardenMatch && seasonMatch;
+                  });
+                  const total = gardenExpenses.reduce((sum, e) => sum + (e.so_tien || 0), 0);
+
+                  return (
+                    <tr
+                      key={garden._id}
+                      onClick={() => handleSelectGarden(garden)}
+                      className="cursor-pointer transition hover:bg-purple-50"
+                    >
+                      <td className="px-6 py-4">
+                        <div className="font-semibold text-gray-900">{garden.ten_vuon}</div>
+                      </td>
+                      <td className="px-6 py-4 text-gray-600">{garden.dia_diem || 'Chưa có địa điểm'}</td>
+                      <td className="px-6 py-4 text-center text-gray-900">{gardenExpenses.length}</td>
+                      <td className="px-6 py-4 text-center font-semibold text-purple-600">{total.toLocaleString('vi-VN')} đ</td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan="4" className="px-6 py-10 text-center text-gray-500">
+                    Không tìm thấy vườn phù hợp
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     );

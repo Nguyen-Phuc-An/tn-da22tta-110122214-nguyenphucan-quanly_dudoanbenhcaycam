@@ -15,6 +15,7 @@ const FertilizerPage = () => {
   const [modal_sua, setModalSua] = useState(false);
   const [selected_id, setSelectedId] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
   
   const [form_data, setFormData] = useState({
     ten_phan_bon: '',
@@ -132,6 +133,16 @@ const FertilizerPage = () => {
     fert.ten_phan_bon?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const ITEMS_PER_PAGE = 8;
+  const totalPages = Math.max(1, Math.ceil(filteredFertilizers.length / ITEMS_PER_PAGE));
+  const currentPageSafe = Math.min(currentPage, totalPages);
+  const startIndex = (currentPageSafe - 1) * ITEMS_PER_PAGE;
+  const paginatedFertilizers = filteredFertilizers.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
   return (
     <AdminLayout>
       <div>
@@ -175,8 +186,8 @@ const FertilizerPage = () => {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {filteredFertilizers.length > 0 ? (
-                  filteredFertilizers.map((fert) => (
+                {paginatedFertilizers.length > 0 ? (
+                  paginatedFertilizers.map((fert) => (
                     <tr key={fert._id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 w-96 max-w-96">
                         <span className="block truncate text-gray-900 font-medium" title={fert.ten_phan_bon}>
@@ -222,6 +233,29 @@ const FertilizerPage = () => {
                 )}
               </tbody>
             </table>
+            {filteredFertilizers.length > 0 && totalPages > 1 && (
+              <div className="flex items-center justify-between border-t bg-gray-50 px-6 py-4">
+                <div className="text-sm text-gray-600">
+                  Trang <span className="font-semibold">{currentPageSafe}</span> / <span className="font-semibold">{totalPages}</span>
+                  <span className="ml-2">({filteredFertilizers.length} phân bón)</span>
+                </div>
+                <div className="flex gap-1">
+                  {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`min-w-9 rounded px-3 py-1 text-sm font-medium transition ${
+                        currentPageSafe === page
+                          ? 'bg-green-600 text-white'
+                          : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

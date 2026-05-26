@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
 import PrivateRoute from './components/Layout/PrivateRoute';
 import AdminRoute from './components/Admin/AdminRoute';
 import AdminDashboardPage from './pages/Admin/AdminDashboardPage';
@@ -61,7 +60,7 @@ const MaintenanceGate = ({ children, maintenanceMode, loading }) => {
   const location = useLocation();
   const user = authService.getCurrentUser();
   const isAdmin = user?.vai_tro === 'admin';
-  const isAuthPage = location.pathname === '/login' || location.pathname === '/register';
+  const isAuthPage = location.pathname === '/login';
   const isMaintenancePage = location.pathname === '/maintenance';
   const isAdminPath = location.pathname.startsWith('/admin');
 
@@ -161,7 +160,7 @@ function App() {
           <Routes>
             {/* Auth Routes */}
             <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/register" element={<Navigate to="/login" replace />} />
             <Route path="/maintenance" element={<MaintenancePage />} />
 
             {/* Root route - redirect based on role */}

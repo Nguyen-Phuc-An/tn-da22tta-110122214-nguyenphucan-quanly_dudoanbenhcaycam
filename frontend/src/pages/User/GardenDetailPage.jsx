@@ -62,6 +62,16 @@ const GardenDetailPage = () => {
   const totalExpenses = expenses.reduce((sum, e) => sum + (e.so_tien || 0), 0);
   const totalPlotArea = plots.reduce((sum, plot) => sum + Number(plot.area || 0), 0);
 
+  const formatExpenseDate = (expense) => {
+    const rawDate = expense?.ngay || expense?.ngay_tao || expense?.ngay_cap_nhat || expense?.createdAt;
+    if (!rawDate) return 'N/A';
+
+    const parsedDate = new Date(rawDate);
+    if (Number.isNaN(parsedDate.getTime())) return 'N/A';
+
+    return parsedDate.toLocaleDateString('vi-VN');
+  };
+
   const openCreatePlotForm = () => {
     setEditingPlotId(null);
     reset(plotDefaults);
@@ -203,14 +213,14 @@ const GardenDetailPage = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
           <div className="bg-white rounded-xl shadow-md p-6">
             <p className="text-gray-600 text-sm flex items-center gap-2">
-              <FaNotesMedical className="text-blue-600" /> Nhật ký
+              Nhật ký
             </p>
             <p className="text-2xl font-bold text-gray-900 mt-2">{logs.length}</p>
           </div>
 
           <div className="bg-white rounded-xl shadow-md p-6">
             <p className="text-gray-600 text-sm flex items-center gap-2">
-              <FaCoins className="text-orange-600" /> Chi phí
+              Chi phí
             </p>
             <p className="text-2xl font-bold text-orange-600 mt-2">
               {(totalExpenses / 1000000).toFixed(1)}M ₫
@@ -396,17 +406,17 @@ const GardenDetailPage = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Recent Logs */}
           <div className="bg-white rounded-xl shadow-md p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">📝 Nhật ký gần đây</h2>
-            <div className="space-y-3">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Nhật ký gần đây</h2>
+            <div className="max-h-56 overflow-y-auto pr-1 space-y-3">
               {logs.length === 0 ? (
                 <p className="text-gray-500 text-sm">Chưa có nhật ký nào</p>
               ) : (
-                logs.slice(0, 5).map(log => (
+                logs.map(log => (
                   <div key={log._id} className="pb-3 border-b last:border-0">
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
                         <p className="text-sm text-gray-500">
-                          {new Date(log.ngay).toLocaleDateString('vi-VN')}
+                          {formatExpenseDate({ ngay: log.ngay || log.ngay_lam || log.createdAt })}
                         </p>
                         {log.task_id && (
                           <p className="font-semibold text-gray-900 text-sm">
@@ -424,7 +434,7 @@ const GardenDetailPage = () => {
 
           {/* Recent Expenses */}
           <div className="bg-white rounded-xl shadow-md p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">💰 Chi phí gần đây</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Chi phí gần đây</h2>
             <div className="space-y-3">
               {expenses.length === 0 ? (
                 <p className="text-gray-500 text-sm">Chưa có chi phí nào</p>
@@ -432,9 +442,11 @@ const GardenDetailPage = () => {
                 expenses.slice(0, 5).map(expense => (
                   <div key={expense._id} className="pb-3 border-b last:border-0 flex justify-between items-center">
                     <div>
-                      <p className="font-semibold text-gray-900 text-sm">{expense.mo_ta}</p>
+                      <p className="font-semibold text-gray-900 text-sm">
+                        {expense.mo_ta || expense.loai_chi_phi || 'Chi phí'}
+                      </p>
                       <p className="text-gray-500 text-xs">
-                        {new Date(expense.createdAt).toLocaleDateString('vi-VN')}
+                        {formatExpenseDate(expense)}
                       </p>
                     </div>
                     <p className="font-bold text-orange-600 text-sm">

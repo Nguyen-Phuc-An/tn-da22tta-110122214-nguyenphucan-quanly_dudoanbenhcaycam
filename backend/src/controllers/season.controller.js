@@ -9,10 +9,23 @@ const getSeasonDateRange = (season) => {
     return null;
   }
 
-  const startDate = new Date(Number(season.nam), Number(season.thang_bat_dau) - 1, 1, 0, 0, 0, 0);
-  const endDate = new Date(Number(season.nam), Number(season.thang_ket_thuc), 0, 23, 59, 59, 999);
+  const startYear = Number(season.nam);
+  const startMonth = Number(season.thang_bat_dau);
+  const endMonth = Number(season.thang_ket_thuc);
+  const endYear = endMonth < startMonth ? startYear + 1 : startYear;
+
+  const startDate = new Date(startYear, startMonth - 1, 1, 0, 0, 0, 0);
+  const endDate = new Date(endYear, endMonth, 0, 23, 59, 59, 999);
 
   return { startDate, endDate };
+};
+
+const seasonsOverlap = (firstRange, secondRange) => {
+  if (!firstRange || !secondRange) {
+    return false;
+  }
+
+  return firstRange.startDate <= secondRange.endDate && secondRange.startDate <= firstRange.endDate;
 };
 
 // Helper: Tự động đồng bộ trạng thái mùa vụ theo thời gian
@@ -44,6 +57,13 @@ const syncSeasonStatuses = async () => {
   for (const season of seasons) {
     await checkAndUpdateSeasonStatus(season);
   }
+};
+
+const getCurrentActiveSeason = async () => {
+  await syncSeasonStatuses();
+
+  const activeSeason = await Season.findOne({ trang_thai: 'Đang diễn ra' }).sort({ nam: -1, thang_bat_dau: 1 });
+  return activeSeason;
 };
 
 // Lấy tất cả mùa vụ
@@ -145,21 +165,32 @@ const getSeasonById = async (req, res) => {
 const createSeason = async (req, res) => {
   try {
     const { ten_mua_vu, nam, thang_bat_dau, thang_ket_thuc, mo_ta } = req.body;
+    const normalizedNam = Number(nam);
+    const normalizedThangBatDau = thang_bat_dau !== undefined && thang_bat_dau !== '' ? Number(thang_bat_dau) : undefined;
+    const normalizedThangKetThuc = thang_ket_thuc !== undefined && thang_ket_thuc !== '' ? Number(thang_ket_thuc) : undefined;
 
     // Kiểm tra dữ liệu bắt buộc
-    if (!ten_mua_vu || !nam) {
+    if (!ten_mua_vu || !normalizedNam) {
       return res.status(400).json({
         success: false,
         message: 'Vui lòng nhập tên mùa vụ và năm',
       });
     }
 
-    // Kiểm tra thứ tự tháng
-    if (thang_bat_dau && thang_ket_thuc && thang_bat_dau > thang_ket_thuc) {
-      return res.status(400).json({
-        success: false,
-        message: 'Tháng bắt đầu không thể sau tháng kết thúc',
+    const nextSeasonRange = getSeasonDateRange({ nam: normalizedNam, thang_bat_dau: normalizedThangBatDau, thang_ket_thuc: normalizedThangKetThuc });
+    if (nextSeasonRange) {
+      const existingSeasons = await Season.find();
+      const hasOverlap = existingSeasons.some((existingSeason) => {
+        const existingRange = getSeasonDateRange(existingSeason);
+        return seasonsOverlap(nextSeasonRange, existingRange);
       });
+
+      if (hasOverlap) {
+        return res.status(400).json({
+          success: false,
+          message: 'Mùa vụ mới bị trùng với mùa vụ hiện có. Mùa tiếp theo phải bắt đầu sau khi mùa trước kết thúc.',
+        });
+      }
     }
 
     // Kiểm tra quyền admin
@@ -173,9 +204,9 @@ const createSeason = async (req, res) => {
 
     const season = new Season({
       ten_mua_vu,
-      nam,
-      thang_bat_dau,
-      thang_ket_thuc,
+      nam: normalizedNam,
+      thang_bat_dau: normalizedThangBatDau,
+      thang_ket_thuc: normalizedThangKetThuc,
       mo_ta: mo_ta || '',
       trang_thai: 'Sắp diễn ra',
     });
@@ -203,6 +234,9 @@ const createSeason = async (req, res) => {
 const updateSeason = async (req, res) => {
   try {
     const { ten_mua_vu, nam, thang_bat_dau, thang_ket_thuc, mo_ta, trang_thai } = req.body;
+    const normalizedNam = nam !== undefined && nam !== '' ? Number(nam) : undefined;
+    const normalizedThangBatDau = thang_bat_dau !== undefined && thang_bat_dau !== '' ? Number(thang_bat_dau) : undefined;
+    const normalizedThangKetThuc = thang_ket_thuc !== undefined && thang_ket_thuc !== '' ? Number(thang_ket_thuc) : undefined;
 
     const season = await Season.findById(req.params.id);
 
@@ -222,22 +256,35 @@ const updateSeason = async (req, res) => {
       });
     }
 
-    // Kiểm tra thứ tự tháng
-    const newThangBatDau = thang_bat_dau !== undefined ? thang_bat_dau : season.thang_bat_dau;
-    const newThangKetThuc = thang_ket_thuc !== undefined ? thang_ket_thuc : season.thang_ket_thuc;
-    
-    if (newThangBatDau && newThangKetThuc && newThangBatDau > newThangKetThuc) {
-      return res.status(400).json({
-        success: false,
-        message: 'Tháng bắt đầu không thể sau tháng kết thúc',
+    const newThangBatDau = normalizedThangBatDau !== undefined ? normalizedThangBatDau : season.thang_bat_dau;
+    const newThangKetThuc = normalizedThangKetThuc !== undefined ? normalizedThangKetThuc : season.thang_ket_thuc;
+
+    const nextSeasonRange = getSeasonDateRange({
+      nam: normalizedNam !== undefined ? normalizedNam : season.nam,
+      thang_bat_dau: newThangBatDau,
+      thang_ket_thuc: newThangKetThuc,
+    });
+
+    if (nextSeasonRange) {
+      const existingSeasons = await Season.find({ _id: { $ne: season._id } });
+      const hasOverlap = existingSeasons.some((existingSeason) => {
+        const existingRange = getSeasonDateRange(existingSeason);
+        return seasonsOverlap(nextSeasonRange, existingRange);
       });
+
+      if (hasOverlap) {
+        return res.status(400).json({
+          success: false,
+          message: 'Mùa vụ bị trùng với mùa vụ hiện có. Mùa tiếp theo phải bắt đầu sau khi mùa trước kết thúc.',
+        });
+      }
     }
 
     // Cập nhật dữ liệu
     if (ten_mua_vu) season.ten_mua_vu = ten_mua_vu;
-    if (nam) season.nam = nam;
-    if (thang_bat_dau !== undefined) season.thang_bat_dau = thang_bat_dau;
-    if (thang_ket_thuc !== undefined) season.thang_ket_thuc = thang_ket_thuc;
+    if (normalizedNam !== undefined) season.nam = normalizedNam;
+    if (normalizedThangBatDau !== undefined) season.thang_bat_dau = normalizedThangBatDau;
+    if (normalizedThangKetThuc !== undefined) season.thang_ket_thuc = normalizedThangKetThuc;
     if (mo_ta !== undefined) season.mo_ta = mo_ta;
 
     await season.save();
@@ -323,6 +370,53 @@ const deleteSeason = async (req, res) => {
   }
 };
 
+// Đồng bộ mùa vụ đang diễn ra cho tất cả vườn
+const syncCurrentSeasonForAllGardens = async (req, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user || user.vai_tro !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Chỉ admin mới có thể đồng bộ mùa vụ cho vườn',
+      });
+    }
+
+    const activeSeason = await getCurrentActiveSeason();
+    if (!activeSeason) {
+      return res.status(400).json({
+        success: false,
+        message: 'Không tìm thấy mùa vụ đang diễn ra',
+      });
+    }
+
+    const result = await Garden.updateMany(
+      {},
+      {
+        season_id: activeSeason._id,
+        ngay_cap_nhat: new Date(),
+      }
+    );
+
+    console.log('✓ Đồng bộ mùa vụ cho tất cả vườn:', activeSeason.ten_mua_vu, result.modifiedCount || 0);
+
+    res.json({
+      success: true,
+      message: `Đã cập nhật mùa vụ "${activeSeason.ten_mua_vu}" cho tất cả vườn`,
+      data: {
+        season: activeSeason,
+        matchedCount: result.matchedCount || 0,
+        modifiedCount: result.modifiedCount || 0,
+      },
+    });
+  } catch (error) {
+    console.error('❌ Lỗi đồng bộ mùa vụ cho vườn:', error.message);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 module.exports = {
   getSeasons,
   getAllSeasonsByAdmin,
@@ -330,4 +424,5 @@ module.exports = {
   createSeason,
   updateSeason,
   deleteSeason,
+  syncCurrentSeasonForAllGardens,
 };

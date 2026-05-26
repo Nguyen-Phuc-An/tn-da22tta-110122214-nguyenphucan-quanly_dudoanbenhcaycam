@@ -27,10 +27,10 @@ Kết quả: model.h5 + disease_labels.json
 ║    - Mỗi epoch, ảnh được augment khác nhau                                ║
 ║    - Cho phép huấn luyện trên máy yếu                                     ║
 ║                                                                            ║
-║ 4. TRAIN/VALIDATION SPLIT (80/20)                                         ║
-║    - 80% (~1290 ảnh) → Huấn luyện                                         ║
-║    - 20% (~325 ảnh) → Đánh giá (phát hiện overfitting)                    ║
-║    - Nếu val_loss ↑ → model overfitting → dừng sớm (Early Stopping)       ║
+║ 4. TRAIN/VALIDATION/TEST SPLIT (80/10/10)                                  ║
+║    - 80% → Huấn luyện                                                     ║
+║    - 10% → Validation (phát hiện overfitting)                             ║
+║    - 10% → Test (đánh giá cuối cùng)                                       ║
 ║                                                                            ║
 ║ 5. SOFTMAX CLASSIFICATION                                                  ║
 ║    - Chuyển logit thành xác suất: P(class) = exp(logit) / Σ(exp(logit))   ║
@@ -50,6 +50,7 @@ from tensorflow.keras import layers
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.applications import MobileNetV2
 from sklearn.metrics import classification_report, precision_score, recall_score, f1_score
+from sklearn.model_selection import train_test_split
 
 # ============================================================================
 # 1. CẤU HÌNH
@@ -178,14 +179,60 @@ def organize_dataset():
     return organized_dir, image_count
 
 
+def split_dataset(organized_dir):
+    """Tách dataset thành train/val/test theo tỉ lệ 80/10/10."""
+
+    print("📂 Đang tách dataset thành train/val/test (80/10/10)...")
+
+    split_root = "split_dataset"
+    if os.path.exists(split_root):
+        shutil.rmtree(split_root)
+
+    split_dirs = {
+        'train': os.path.join(split_root, 'train'),
+        'val': os.path.join(split_root, 'val'),
+        'test': os.path.join(split_root, 'test'),
+    }
+
+    for path in split_dirs.values():
+        os.makedirs(path, exist_ok=True)
+
+    image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.webp', '.JPG', '.JPEG', '.PNG', '.BMP', '.WEBP'}
+
+    for disease_dir in Path(organized_dir).iterdir():
+        if not disease_dir.is_dir():
+            continue
+
+        class_name = disease_dir.name
+        files = [p for p in disease_dir.iterdir() if p.is_file() and p.suffix in image_extensions]
+
+        if len(files) == 0:
+            continue
+
+        train_files, temp_files = train_test_split(files, test_size=0.2, random_state=42, shuffle=True)
+        val_files, test_files = train_test_split(temp_files, test_size=0.5, random_state=42, shuffle=True)
+
+        for subset_name, subset_files in [('train', train_files), ('val', val_files), ('test', test_files)]:
+            subset_class_dir = os.path.join(split_dirs[subset_name], class_name)
+            os.makedirs(subset_class_dir, exist_ok=True)
+
+            for img_file in subset_files:
+                shutil.copy2(img_file, os.path.join(subset_class_dir, img_file.name))
+
+        print(f"  ✓ {class_name}: train={len(train_files)}, val={len(val_files)}, test={len(test_files)}")
+
+    print(f"✓ Tách xong dataset tại: {split_root}\n")
+    return split_dirs
+
+
 # ============================================================================
 # 3. TẠO DATA GENERATORS (Load batch từ disk)
 # ============================================================================
 
-def create_data_generators(organized_dir):
-    """Tạo ImageDataGenerator (load batch từ disk, không load vào RAM)"""
+def create_data_generators(split_dirs):
+    """Tạo ImageDataGenerator cho train/validation/test."""
     
-    print("📊 Tạo data generators (80/20 train/val)...")
+    print("📊 Tạo data generators (train/val/test)...")
     
     # Augmentation cho training
     train_datagen = ImageDataGenerator(
@@ -195,35 +242,39 @@ def create_data_generators(organized_dir):
         height_shift_range=0.2,
         horizontal_flip=True,
         zoom_range=0.2,
-        validation_split=0.2  # 20% validation
     )
     
-    # Chỉ rescale cho validation
-    val_datagen = ImageDataGenerator(
-        rescale=1./255,
-        validation_split=0.2
-    )
+    # Chỉ rescale cho validation/test
+    eval_datagen = ImageDataGenerator(rescale=1./255)
     
     # Training generator
     train_generator = train_datagen.flow_from_directory(
-        organized_dir,
+        split_dirs['train'],
         target_size=(IMG_SIZE, IMG_SIZE),
         batch_size=BATCH_SIZE,
         class_mode='categorical',
-        subset='training'
+        shuffle=True
     )
     
     # Validation generator
-    val_generator = val_datagen.flow_from_directory(
-        organized_dir,
+    val_generator = eval_datagen.flow_from_directory(
+        split_dirs['val'],
         target_size=(IMG_SIZE, IMG_SIZE),
         batch_size=BATCH_SIZE,
         class_mode='categorical',
-        subset='validation',
+        shuffle=False
+    )
+
+    # Test generator
+    test_generator = eval_datagen.flow_from_directory(
+        split_dirs['test'],
+        target_size=(IMG_SIZE, IMG_SIZE),
+        batch_size=BATCH_SIZE,
+        class_mode='categorical',
         shuffle=False
     )
     
-    return train_generator, val_generator
+    return train_generator, val_generator, test_generator
 
 
 # ============================================================================
@@ -345,6 +396,56 @@ def evaluate_classification_metrics(model, val_gen):
     }
 
 
+def evaluate_test_metrics(model, test_gen):
+    """Tính precision/recall/F1 trên tập test riêng biệt."""
+
+    print("\n🧪 ĐÁNH GIÁ MÔ HÌNH TRÊN TEST")
+    test_gen.reset()
+
+    y_prob = model.predict(test_gen, verbose=0)
+    y_pred = np.argmax(y_prob, axis=1)
+    y_true = test_gen.classes[:len(y_pred)]
+
+    precision_macro = precision_score(y_true, y_pred, average='macro', zero_division=0)
+    recall_macro = recall_score(y_true, y_pred, average='macro', zero_division=0)
+    f1_macro = f1_score(y_true, y_pred, average='macro', zero_division=0)
+
+    precision_weighted = precision_score(y_true, y_pred, average='weighted', zero_division=0)
+    recall_weighted = recall_score(y_true, y_pred, average='weighted', zero_division=0)
+    f1_weighted = f1_score(y_true, y_pred, average='weighted', zero_division=0)
+
+    print("📊 Macro average (test):")
+    print(f"  Precision: {precision_macro:.4f}")
+    print(f"  Recall:    {recall_macro:.4f}")
+    print(f"  F1-score:  {f1_macro:.4f}")
+
+    print("\n📊 Weighted average (test):")
+    print(f"  Precision: {precision_weighted:.4f}")
+    print(f"  Recall:    {recall_weighted:.4f}")
+    print(f"  F1-score:  {f1_weighted:.4f}")
+
+    print("\n📋 Test classification report:")
+    target_names = [name for name, _ in sorted(test_gen.class_indices.items(), key=lambda item: item[1])]
+    print(
+        classification_report(
+            y_true,
+            y_pred,
+            labels=list(range(len(target_names))),
+            target_names=target_names,
+            zero_division=0,
+        )
+    )
+
+    return {
+        'precision_macro': precision_macro,
+        'recall_macro': recall_macro,
+        'f1_macro': f1_macro,
+        'precision_weighted': precision_weighted,
+        'recall_weighted': recall_weighted,
+        'f1_weighted': f1_weighted,
+    }
+
+
 # ============================================================================
 # 6. LƯUACL MODEL VÀ MAPPING
 # ============================================================================
@@ -386,7 +487,7 @@ def save_model_and_labels(model, train_gen):
 # 7. IN KẾT QUẢ TRAINING
 # ============================================================================
 
-def print_results(history, model_name):
+def print_results(history, model_name, metrics=None):
     """In ra kết quả training"""
     
     print("\n" + "=" * 70)
@@ -406,6 +507,13 @@ def print_results(history, model_name):
     print(f"\n📊 Loss:")
     print(f"  Train: {final_train_loss:.4f}")
     print(f"  Val:   {final_val_loss:.4f}")
+
+    if metrics and metrics.get('test'):
+        test_metrics = metrics['test']
+        print(f"\n🧪 Test metrics:")
+        print(f"  Precision (weighted): {test_metrics['precision_weighted']:.4f}")
+        print(f"  Recall (weighted):    {test_metrics['recall_weighted']:.4f}")
+        print(f"  F1-score (weighted):  {test_metrics['f1_weighted']:.4f}")
     
     print(f"\n✅ Model đã lưu: {model_name}")
     print(f"✅ Label mapping: {LABEL_FILE}")
@@ -446,27 +554,33 @@ if __name__ == "__main__":
             print("❌ Lỗi: Không tìm thấy ảnh nào!")
             exit(1)
         
-        # Bước 2: Tạo generators
-        train_gen, val_gen = create_data_generators(organized_dir)
+        # Bước 2: Tách train/val/test
+        split_dirs = split_dataset(organized_dir)
+
+        # Bước 3: Tạo generators
+        train_gen, val_gen, test_gen = create_data_generators(split_dirs)
         num_classes = len(train_gen.class_indices)
         
-        # Bước 3: Xây dựng model
+        # Bước 4: Xây dựng model
         model = build_model(num_classes)
         print(f"\n✓ Model tạo xong ({num_classes} classes)")
         
-        # Bước 4: Huấn luyện
+        # Bước 5: Huấn luyện
         history = train_model(model, train_gen, val_gen, num_classes)
         
-        # Bước 5: Lưu
+        # Bước 6: Lưu
         class_names = save_model_and_labels(model, train_gen)
         
-        # Bước 6: Đánh giá Precision / Recall / F1
+        # Bước 7: Đánh giá Precision / Recall / F1 trên validation
         metrics = evaluate_classification_metrics(model, val_gen)
 
-        # Bước 7: In kết quả
-        print_results(history, MODEL_PATH)
+        # Bước 8: Đánh giá cuối cùng trên test
+        metrics['test'] = evaluate_test_metrics(model, test_gen)
 
-        # Bước 8: Lưu report cho frontend/backend
+        # Bước 9: In kết quả
+        print_results(history, MODEL_PATH, metrics)
+
+        # Bước 10: Lưu report cho frontend/backend
         save_training_report(history, metrics)
         
     except Exception as e:

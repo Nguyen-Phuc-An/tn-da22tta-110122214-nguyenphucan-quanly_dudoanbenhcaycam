@@ -18,6 +18,7 @@ const DiseasesPage = () => {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const { register, handleSubmit, reset } = useForm();
 
   const emptyDiseaseForm = {
@@ -196,6 +197,16 @@ const DiseasesPage = () => {
       disease.ten_benh?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       disease.ten_benh_en?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const ITEMS_PER_PAGE = 8;
+  const totalPages = Math.max(1, Math.ceil(filteredDiseases.length / ITEMS_PER_PAGE));
+  const currentPageSafe = Math.min(currentPage, totalPages);
+  const startIndex = (currentPageSafe - 1) * ITEMS_PER_PAGE;
+  const paginatedDiseases = filteredDiseases.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
   const getDangerBadge = (level) => {
     const colors = {
@@ -458,6 +469,7 @@ const DiseasesPage = () => {
           ) : filteredDiseases.length === 0 ? (
             <div className="p-8 text-center text-gray-600">Không tìm thấy bệnh</div>
           ) : (
+            <>
             <table className="w-full">
               <thead className="bg-gray-50 border-b">
                 <tr>
@@ -476,7 +488,7 @@ const DiseasesPage = () => {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {filteredDiseases.map((disease) => (
+                {paginatedDiseases.map((disease) => (
                   <tr key={disease._id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-gray-900 font-medium">
@@ -513,6 +525,30 @@ const DiseasesPage = () => {
                 ))}
               </tbody>
             </table>
+            {filteredDiseases.length > 0 && totalPages > 1 && (
+              <div className="flex items-center justify-between border-t bg-gray-50 px-6 py-4">
+                <div className="text-sm text-gray-600">
+                  Trang <span className="font-semibold">{currentPageSafe}</span> / <span className="font-semibold">{totalPages}</span>
+                  <span className="ml-2">({filteredDiseases.length} bệnh)</span>
+                </div>
+                <div className="flex gap-1">
+                  {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`min-w-9 rounded px-3 py-1 text-sm font-medium transition ${
+                        currentPageSafe === page
+                          ? 'bg-green-600 text-white'
+                          : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            </>
           )}
         </div>
 
