@@ -9,11 +9,17 @@ const MLTrainingPage = () => {
   const [loading, setLoading] = useState(false);
   const [retraining, setRetraining] = useState(false);
   const [selectedDisease, setSelectedDisease] = useState('');
+  const [selectedDiseaseLabel, setSelectedDiseaseLabel] = useState('');
+  const [lastUploadResult, setLastUploadResult] = useState(null);
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({ done: 0, total: 0, message: '' });
   const [progress, setProgress] = useState({ progress: 0, status: '', error: null });
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [maintenanceLoading, setMaintenanceLoading] = useState(false);
   const fileInputRef = useRef(null);
   const eventSourceRef = useRef(null);
+  const UPLOAD_BATCH_SIZE = 5;
 
   // Fetch training status on mount
   useEffect(() => {
@@ -113,39 +119,79 @@ const MLTrainingPage = () => {
     eventSourceRef.current = eventSource;
   };
 
-  const handleUploadClick = (disease) => {
-    setSelectedDisease(disease);
+  const handleUploadClick = (diseaseKey, diseaseLabel) => {
+    setSelectedDisease(diseaseKey);
+    setSelectedDiseaseLabel(diseaseLabel || diseaseKey);
     fileInputRef.current?.click();
   };
 
-  const handleFileSelect = async (event) => {
+  const handleChooseFiles = (event) => {
     const files = Array.from(event.target.files || []);
+    setSelectedFiles(files);
+  };
+
+  const handleFileSelect = async () => {
+    const files = selectedFiles;
     if (files.length === 0) return;
 
     try {
-      const formData = new FormData();
-      files.forEach((file) => {
-        formData.append('images', file);
+      setUploading(true);
+      setUploadProgress({ done: 0, total: files.length, message: 'Chuẩn bị tải ảnh...' });
+      toast.loading(`Đang tải ${files.length} ảnh lên server...`, { id: 'ml-upload' });
+
+      let uploadedCount = 0;
+
+      for (let index = 0; index < files.length; index += UPLOAD_BATCH_SIZE) {
+        const batch = files.slice(index, index + UPLOAD_BATCH_SIZE);
+        const formData = new FormData();
+        formData.append('disease_name', selectedDisease);
+        batch.forEach((file) => {
+          formData.append('images', file);
+        });
+
+        setUploadProgress({
+          done: Math.min(index + batch.length, files.length),
+          total: files.length,
+          message: `Đang tải lô ${Math.floor(index / UPLOAD_BATCH_SIZE) + 1}/${Math.ceil(files.length / UPLOAD_BATCH_SIZE)} (${batch.length} ảnh/lô)`,
+        });
+
+        const res = await apiClient.post('/ml/training-images', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+
+        if (!res.data.success) {
+          throw new Error(res.data.message || 'Upload failed');
+        }
+
+        uploadedCount += Number(res.data.data?.count || batch.length || 0);
+
+        setUploadProgress({
+          done: Math.min(index + batch.length, files.length),
+          total: files.length,
+          message: `Đã xong lô ${Math.floor(index / UPLOAD_BATCH_SIZE) + 1}/${Math.ceil(files.length / UPLOAD_BATCH_SIZE)}, chuẩn bị lô tiếp theo...`,
+        });
+      }
+
+      const diseaseLabel = selectedDiseaseLabel || trainingStatus.status?.[selectedDisease]?.ten_benh || selectedDisease;
+
+      setLastUploadResult({
+        disease: selectedDisease,
+        diseaseLabel,
+        count: uploadedCount,
+        uploadedAt: new Date().toLocaleString('vi-VN'),
       });
 
-      const res = await apiClient.post(
-        `/ml/training-images?disease_name=${selectedDisease}`,
-        formData,
-        {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        }
-      );
-
-      if (res.data.success) {
-        toast.success(`✅ ${res.data.data.count} ảnh tải lên thành công`);
-        fetchTrainingStatus();
-      }
+      toast.success(`✅ Đã tải lên ${uploadedCount} ảnh cho ${diseaseLabel}`, { id: 'ml-upload' });
+      fetchTrainingStatus();
     } catch (error) {
       console.error('❌ Upload error:', error);
-      toast.error(error.response?.data?.message || 'Lỗi tải lên');
+      toast.error(error.response?.data?.message || error.message || 'Lỗi tải lên', { id: 'ml-upload' });
     } finally {
       // Reset input
       fileInputRef.current.value = '';
+      setSelectedFiles([]);
+      setUploading(false);
+      setUploadProgress({ done: 0, total: 0, message: '' });
     }
   };
 
@@ -284,6 +330,22 @@ const MLTrainingPage = () => {
             {maintenanceMode ? 'Locked' : 'Unlocked'}
           </div>
         </div>
+
+        {lastUploadResult && (
+          <div className="rounded-2xl border border-green-200 bg-green-50 px-4 py-4 text-green-900 shadow-sm">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-green-700">Kết quả tải ảnh gần nhất</p>
+                <p className="text-lg font-bold">
+                  Đã tải lên {lastUploadResult.count} ảnh cho {lastUploadResult.diseaseLabel}
+                </p>
+              </div>
+              <div className="text-sm text-green-700 font-medium">
+                {lastUploadResult.uploadedAt}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Summary Card */}
         <div className="bg-gray-900 text-white rounded-lg p-6 shadow">
@@ -529,7 +591,7 @@ const MLTrainingPage = () => {
                     <h3 className="text-2xl font-bold text-gray-900">
                       {data.ten_benh || disease}
                     </h3>
-                    <p className="text-sm font-medium text-gray-500 mt-1">{disease}</p>
+                    <p className="text-sm font-medium text-gray-500 mt-1">{data.upload_key || disease}</p>
                     <p className="text-xs text-gray-500 mt-1">
                       {data.source === 'original'
                         ? 'Bệnh gốc (organized_dataset)'
@@ -558,13 +620,69 @@ const MLTrainingPage = () => {
                   </div>
 
                   {/* Upload Button */}
-                  <button
-                    onClick={() => handleUploadClick(disease)}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition"
-                  >
-                    <FaUpload size={14} />
-                    Tải Ảnh Lên
-                  </button>
+                  <div className="space-y-3">
+                    <button
+                      type="button"
+                      disabled={uploading}
+                      onClick={() => handleUploadClick(data.upload_key || disease, data.ten_benh || disease)}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
+                    >
+                      <FaUpload size={14} />
+                      {uploading && selectedDisease === (data.upload_key || disease) ? 'Đang tải...' : 'Chọn Nhiều Ảnh'}
+                    </button>
+
+                    {selectedDisease === (data.upload_key || disease) && selectedFiles.length > 0 && (
+                      <div className="rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-900">
+                        <p className="font-semibold mb-2">Đã chọn {selectedFiles.length} ảnh:</p>
+                        <div className="max-h-28 overflow-auto space-y-1 pr-1">
+                          {selectedFiles.slice(0, 6).map((file) => (
+                            <p key={`${file.name}-${file.size}`} className="truncate">
+                              • {file.name}
+                            </p>
+                          ))}
+                          {selectedFiles.length > 6 && (
+                            <p className="text-green-700">• Và {selectedFiles.length - 6} ảnh khác...</p>
+                          )}
+                        </div>
+                        <div className="mt-3 flex gap-2">
+                          <button
+                            type="button"
+                            disabled={uploading}
+                            onClick={handleFileSelect}
+                            className="flex-1 rounded-lg bg-green-700 px-3 py-2 font-semibold text-white hover:bg-green-800 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
+                          >
+                            {uploading ? 'Đang tải...' : `Tải lên ${selectedFiles.length} ảnh`}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={uploading}
+                            onClick={() => {
+                              setSelectedFiles([]);
+                              if (fileInputRef.current) {
+                                fileInputRef.current.value = '';
+                              }
+                            }}
+                            className="rounded-lg border border-green-300 bg-white px-3 py-2 font-semibold text-green-900 hover:bg-green-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Hủy
+                          </button>
+                        </div>
+                        {uploading && uploadProgress.total > 0 && (
+                          <div className="mt-3 space-y-2">
+                            <div className="h-2 w-full overflow-hidden rounded-full bg-green-100">
+                              <div
+                                className="h-full rounded-full bg-green-700 transition-all"
+                                style={{ width: `${Math.max(0, Math.min((uploadProgress.done / uploadProgress.total) * 100, 100))}%` }}
+                              />
+                            </div>
+                            <p className="text-xs font-medium text-green-800">
+                              {uploadProgress.message} - {uploadProgress.done}/{uploadProgress.total} ảnh
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
 
                   {/* Progress Bar */}
                   {data.total > 0 && (
@@ -605,7 +723,7 @@ const MLTrainingPage = () => {
         type="file"
         multiple
         accept="image/*"
-        onChange={handleFileSelect}
+        onChange={handleChooseFiles}
         style={{ display: 'none' }}
       />
 

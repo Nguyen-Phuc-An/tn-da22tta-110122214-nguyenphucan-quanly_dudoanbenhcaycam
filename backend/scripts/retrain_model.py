@@ -40,6 +40,7 @@ IMG_SIZE = 224
 BATCH_SIZE = 32
 EPOCHS = 5  # Retrain = fewer epochs (faster)
 TEMP_COMBINED_DIR = "combined_dataset_temp"
+EXCLUDED_CLASSES = {"melanose"}
 
 
 def crop_to_leaf_region(image_array):
@@ -113,6 +114,9 @@ def combine_datasets():
     print("  [COPY] Copying original dataset...")
     if os.path.exists(ORGANIZED_DATASET_DIR):
         for disease_dir in os.listdir(ORGANIZED_DATASET_DIR):
+            if disease_dir in EXCLUDED_CLASSES:
+                continue
+
             disease_path = os.path.join(ORGANIZED_DATASET_DIR, disease_dir)
             if not os.path.isdir(disease_path):
                 continue
@@ -132,6 +136,9 @@ def combine_datasets():
     print("  [COPY] Copying training images...")
     if os.path.exists(TRAINING_IMAGES_DIR):
         for disease_dir in os.listdir(TRAINING_IMAGES_DIR):
+            if disease_dir in EXCLUDED_CLASSES:
+                continue
+
             disease_path = os.path.join(TRAINING_IMAGES_DIR, disease_dir)
             if not os.path.isdir(disease_path):
                 continue
@@ -214,6 +221,54 @@ def create_data_generators(combined_dir):
     print()
     
     return train_generator, val_generator
+
+
+def create_data_generators_from_splits(split_dirs):
+    """Tạo ImageDataGenerator cho train/validation/test từ thư mục đã split."""
+    print("PROGRESS:30:Tao data generators from splits")
+    print("[DATA] Tao data generators (train/val/test)...")
+
+    train_datagen = ImageDataGenerator(
+        rescale=1./255,
+        rotation_range=20,
+        width_shift_range=0.2,
+        height_shift_range=0.2,
+        horizontal_flip=True,
+        zoom_range=0.2,
+        preprocessing_function=crop_to_leaf_region,
+    )
+
+    eval_datagen = ImageDataGenerator(rescale=1./255, preprocessing_function=crop_to_leaf_region)
+
+    train_generator = train_datagen.flow_from_directory(
+        split_dirs['train'],
+        target_size=(IMG_SIZE, IMG_SIZE),
+        batch_size=BATCH_SIZE,
+        class_mode='categorical',
+        shuffle=True
+    )
+
+    val_generator = eval_datagen.flow_from_directory(
+        split_dirs['val'],
+        target_size=(IMG_SIZE, IMG_SIZE),
+        batch_size=BATCH_SIZE,
+        class_mode='categorical',
+        shuffle=False
+    )
+
+    test_generator = eval_datagen.flow_from_directory(
+        split_dirs['test'],
+        target_size=(IMG_SIZE, IMG_SIZE),
+        batch_size=BATCH_SIZE,
+        class_mode='categorical',
+        shuffle=False
+    )
+
+    print(f"[OK] Generators ready: train_batches={len(train_generator)}, val_batches={len(val_generator)}, test_batches={len(test_generator)}")
+    print("PROGRESS:40:Generators ready")
+    print()
+
+    return train_generator, val_generator, test_generator
 
 
 # ===== BUILD MODEL =====
@@ -384,6 +439,109 @@ def evaluate_classification_metrics(model, val_gen):
     return metrics
 
 
+def evaluate_test_metrics(model, test_gen):
+    """Tính precision/recall/F1 trên tập test (giống validate nhưng dùng test_gen)."""
+    print("\n[METRICS] Test metrics...")
+    test_gen.reset()
+
+    y_prob = model.predict(test_gen, verbose=0)
+    y_pred = np.argmax(y_prob, axis=1)
+    y_true = test_gen.classes[:len(y_pred)]
+
+    precision_macro = precision_score(y_true, y_pred, average='macro', zero_division=0)
+    recall_macro = recall_score(y_true, y_pred, average='macro', zero_division=0)
+    f1_macro = f1_score(y_true, y_pred, average='macro', zero_division=0)
+
+    precision_weighted = precision_score(y_true, y_pred, average='weighted', zero_division=0)
+    recall_weighted = recall_score(y_true, y_pred, average='weighted', zero_division=0)
+    f1_weighted = f1_score(y_true, y_pred, average='weighted', zero_division=0)
+
+    print("[METRICS] Macro average (test):")
+    print(f"  Precision: {precision_macro:.4f}")
+    print(f"  Recall:    {recall_macro:.4f}")
+    print(f"  F1-score:  {f1_macro:.4f}")
+
+    print("[METRICS] Weighted average (test):")
+    print(f"  Precision: {precision_weighted:.4f}")
+    print(f"  Recall:    {recall_weighted:.4f}")
+    print(f"  F1-score:  {f1_weighted:.4f}")
+
+    metrics = {
+        'precision_macro': precision_macro,
+        'recall_macro': recall_macro,
+        'f1_macro': f1_macro,
+        'precision_weighted': precision_weighted,
+        'recall_weighted': recall_weighted,
+        'f1_weighted': f1_weighted,
+    }
+
+    print(f"METRICS_TEST:{json.dumps(metrics, ensure_ascii=False)}")
+
+    return metrics
+
+
+def split_dataset(organized_dir):
+    """Tách dataset thành train/val/test theo tỉ lệ 80/10/10."""
+
+    print("Splitting combined dataset into train/val/test (80/10/10)...")
+
+    split_root = Path("split_dataset")
+    if split_root.exists():
+        shutil.rmtree(split_root)
+
+    split_dirs = {
+        'train': split_root / 'train',
+        'val': split_root / 'val',
+        'test': split_root / 'test',
+    }
+
+    for p in split_dirs.values():
+        p.mkdir(parents=True, exist_ok=True)
+
+    image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.webp', '.JPG', '.JPEG', '.PNG', '.BMP', '.WEBP'}
+
+    for disease_dir in Path(organized_dir).iterdir():
+        if not disease_dir.is_dir():
+            continue
+
+        class_name = disease_dir.name
+        files = [p for p in disease_dir.iterdir() if p.is_file() and p.suffix.lower() in image_extensions]
+
+        if len(files) == 0:
+            continue
+
+        # Shuffle and split
+        rng = np.random.default_rng(42)
+        files_shuffled = list(files)
+        rng.shuffle(files_shuffled)
+
+        n_total = len(files_shuffled)
+        n_train = int(n_total * 0.8)
+        n_temp = n_total - n_train
+        n_val = n_temp // 2
+        n_test = n_temp - n_val
+
+        train_files = files_shuffled[:n_train]
+        val_files = files_shuffled[n_train:n_train + n_val]
+        test_files = files_shuffled[n_train + n_val:]
+
+        subsets = [('train', train_files), ('val', val_files), ('test', test_files)]
+
+        for subset_name, subset_files in subsets:
+            subset_class_dir = split_dirs[subset_name] / class_name
+            subset_class_dir.mkdir(parents=True, exist_ok=True)
+            for img_file in subset_files:
+                try:
+                    shutil.copy2(img_file, subset_class_dir / img_file.name)
+                except Exception as e:
+                    print(f"  ✗ Lỗi copy {img_file}: {e}")
+
+        print(f"  ✓ {class_name}: train={len(train_files)}, val={len(val_files)}, test={len(test_files)}")
+
+    print(f"✓ Split completed at: {split_root}\n")
+    return {k: str(v) for k, v in split_dirs.items()}
+
+
 # ===== SAVE MODEL & LABELS =====
 def save_model_and_labels(model, train_gen, output_path):
     """Lưu model + disease labels"""
@@ -420,24 +578,31 @@ def main():
     try:
         # 1. Combine datasets
         combined_dir, image_count = combine_datasets()
-        
-        # 2. Create generators
-        train_gen, val_gen = create_data_generators(combined_dir)
-        
-        # 3. Build model
+
+        # 2. Split into train/val/test
+        split_dirs = split_dataset(combined_dir)
+
+        # 3. Create generators from splits
+        train_gen, val_gen, test_gen = create_data_generators_from_splits(split_dirs)
+
+        # 4. Build model
         num_classes = len(image_count)
         model = build_model(num_classes)
-        
-        # 4. Train
+
+        # 5. Train
         history = train_model(model, train_gen, val_gen)
 
-        # 4.5 Training results
+        # 6. Training results
         results = print_training_results(history)
 
-        # 4.6 Evaluate validation metrics
+        # 7. Evaluate validation metrics
         metrics = evaluate_classification_metrics(model, val_gen)
 
-        # 4.7 Save report for backend/frontend
+        # 8. Evaluate test metrics and attach
+        test_metrics = evaluate_test_metrics(model, test_gen)
+        metrics['test'] = test_metrics
+
+        # 9. Save report for backend/frontend
         report_path = Path(OUTPUT_MODEL_PATH).with_name('training_report.json')
         save_training_report(history, metrics, report_path)
         

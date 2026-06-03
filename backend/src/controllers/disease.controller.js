@@ -5,6 +5,7 @@ const path = require('path');
 
 const ORGANIZED_DATASET_DIR = path.resolve(__dirname, '../../../ml/organized_dataset');
 const SAMPLE_IMAGE_LIMIT = 12;
+const EXCLUDED_DISEASE_EN = new Set(['melanose']);
 
 const diseaseFolderMapping = {
   'Bệnh đốm đen': 'black_spot',
@@ -55,12 +56,14 @@ const getAllDiseases = async (req, res) => {
       .populate('goi_y_thuoc', 'ten_thuoc loai hoat_chat')
       .sort({ ten_benh: 1 });
 
-    console.log('✓ Lấy danh sách bệnh:', diseases.length);
+    const visibleDiseases = diseases.filter((disease) => !EXCLUDED_DISEASE_EN.has(disease.ten_benh_en));
+
+    console.log('✓ Lấy danh sách bệnh:', visibleDiseases.length);
 
     res.json({
       success: true,
-      count: diseases.length,
-      data: diseases,
+      count: visibleDiseases.length,
+      data: visibleDiseases,
     });
   } catch (error) {
     console.error('❌ Lỗi lấy danh sách bệnh:', error.message);
@@ -106,7 +109,9 @@ const getDiseaseLibrary = async (req, res) => {
       .sort({ ten_benh: 1 })
       .lean();
 
-    const library = diseases.map((disease) => {
+    const visibleDiseases = diseases.filter((disease) => !EXCLUDED_DISEASE_EN.has(disease.ten_benh_en));
+
+    const library = visibleDiseases.map((disease) => {
       const folderName = getDiseaseFolderName(disease);
       const sampleImages = getSampleImagesForDisease(folderName);
 
@@ -161,6 +166,13 @@ const createDisease = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Vui lòng nhập tên bệnh tiếng Anh (ten_benh_en)',
+      });
+    }
+
+    if (EXCLUDED_DISEASE_EN.has(String(ten_benh_en).trim())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Bệnh này đã được loại khỏi danh sách hiển thị',
       });
     }
 
@@ -255,6 +267,12 @@ const updateDisease = async (req, res) => {
     // Cập nhật các field cơ bản
     if (ten_benh) disease.ten_benh = ten_benh;
     if (ten_benh_en) disease.ten_benh_en = ten_benh_en;
+    if (ten_benh_en && EXCLUDED_DISEASE_EN.has(String(ten_benh_en).trim())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Bệnh này đã được loại khỏi danh sách hiển thị',
+      });
+    }
     if (mo_ta) disease.mo_ta = mo_ta;
     if (nguyen_nhan) disease.nguyen_nhan = nguyen_nhan;
     if (trieu_chung) disease.trieu_chung = trieu_chung;

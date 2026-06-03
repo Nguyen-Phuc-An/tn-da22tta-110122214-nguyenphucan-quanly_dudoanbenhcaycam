@@ -51,6 +51,12 @@ const createGarden = async (req, res) => {
 
     // Lấy thông tin user hiện tại
     const currentUser = await User.findById(req.userId);
+    if (!currentUser) {
+      return res.status(401).json({
+        success: false,
+        message: 'Người dùng không tồn tại. Vui lòng đăng nhập lại.',
+      });
+    }
     let gardenUserId = req.userId;
 
     // Nếu admin cung cấp user_id khác, kiểm tra quyền
@@ -112,6 +118,12 @@ const getGardensByUser = async (req, res) => {
   try {
     // Lấy thông tin user hiện tại
     const currentUser = await User.findById(req.userId);
+    if (!currentUser) {
+      return res.status(401).json({
+        success: false,
+        message: 'Người dùng không tồn tại. Vui lòng đăng nhập lại.',
+      });
+    }
     let filter = {};
 
     /**
@@ -197,6 +209,12 @@ const getGardenById = async (req, res) => {
      */
     
     const currentUser = await User.findById(req.userId);
+    if (!currentUser) {
+      return res.status(401).json({
+        success: false,
+        message: 'Người dùng không tồn tại. Vui lòng đăng nhập lại.',
+      });
+    }
     if (currentUser.vai_tro !== 'admin' && garden.user_id._id.toString() !== req.userId) {
       return res.status(403).json({
         success: false,

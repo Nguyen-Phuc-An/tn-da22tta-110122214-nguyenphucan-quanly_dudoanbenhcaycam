@@ -249,20 +249,38 @@ def predict(image_path, model, labels):
     
     # Dự đoán
     predictions = model.predict(img_array, verbose=0)
-    pred_idx = np.argmax(predictions[0])
-    confidence = predictions[0][pred_idx] * 100
+    
+    # Kiểm tra predictions shape
+    if predictions is None or len(predictions) == 0:
+        raise ValueError("❌ Model không trả về predictions")
+    
+    predictions_flat = predictions[0] if len(predictions.shape) > 1 else predictions
+    
+    if len(predictions_flat) == 0:
+        raise ValueError("❌ Predictions không có phần tử")
+    
+    pred_idx = np.argmax(predictions_flat)
+    
+    # Kiểm tra index hợp lệ
+    if pred_idx >= len(labels["classes"]):
+        raise ValueError(
+            f"❌ Index dự đoán ({pred_idx}) vượt quá số bệnh ({len(labels['classes'])}). "
+            f"Model có thể được train với dữ liệu khác. Vui lòng retrain lại model."
+        )
+    
+    confidence = float(predictions_flat[pred_idx]) * 100
 
     grad_cam = generate_gradcam(image_path, model, int(pred_idx))
     
     # Lấy tên bệnh
     disease_en = labels["classes"][pred_idx]
-    disease_vi = labels["class_vi"][disease_en]
+    disease_vi = labels["class_vi"].get(disease_en, disease_en)
     
     return {
         "disease_en": disease_en,
         "disease_vi": disease_vi,
         "confidence": round(confidence, 2),
-        "top_3": get_top_3(predictions[0], labels),
+        "top_3": get_top_3(predictions_flat, labels),
         "grad_cam": grad_cam
     }
 
@@ -270,12 +288,22 @@ def predict(image_path, model, labels):
 def get_top_3(predictions, labels):
     """Lấy 3 dự đoán hàng đầu"""
     
-    top_3_idx = np.argsort(predictions)[::-1][:3]
+    if predictions is None or len(predictions) == 0:
+        return []
+    
+    num_classes = min(3, len(predictions), len(labels["classes"]))
+    top_3_idx = np.argsort(predictions)[::-1][:num_classes]
     top_3 = []
     
     for idx in top_3_idx:
+        idx = int(idx)
+        
+        # Kiểm tra index hợp lệ
+        if idx >= len(labels["classes"]):
+            continue
+        
         disease_en = labels["classes"][idx]
-        disease_vi = labels["class_vi"][disease_en]
+        disease_vi = labels["class_vi"].get(disease_en, disease_en)
         top_3.append({
             "disease_en": disease_en,
             "disease_vi": disease_vi,

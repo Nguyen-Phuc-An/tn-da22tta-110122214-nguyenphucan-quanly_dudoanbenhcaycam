@@ -75,18 +75,20 @@
 
 | Chỉ số | Giá trị |
 |-------|---------|
-| **Độ chính xác huấn luyện (Train Accuracy)** | 96.46% |
-| **Độ chính xác xác thực (Val Accuracy)** | 97.43% |
-| **Tổn thất huấn luyện (Train Loss)** | 0.0995 |
-| **Tổn thất xác thực (Val Loss)** | 0.0774 |
+| **Độ chính xác huấn luyện (Train Accuracy)** | 93.48% |
+| **Độ chính xác xác thực (Val Accuracy)** | 83.96% |
+| **Tổn thất huấn luyện (Train Loss)** | 0.1787 |
+| **Tổn thất xác thực (Val Loss)** | 0.5613 |
+| **Best Val Accuracy** | 83.96% |
+| **Best Val Loss** | 0.5195 |
 
 ### C.2. Kết quả đánh giá trên tập Test
 
 | Thước đo | Macro | Weighted |
 |---------|-------|----------|
-| **Precision** | 89.22% | 96.97% |
-| **Recall** | 88.70% | 96.76% |
-| **F1-Score** | 88.36% | 96.77% |
+| **Precision** | 68.95% | 87.34% |
+| **Recall** | 69.73% | 83.96% |
+| **F1-Score** | 66.81% | 85.12% |
 
 #### Giải thích:
 - **Precision (Độ chính xác)**: Trong các trường hợp mô hình dự đoán là bệnh X, có bao nhiêu % thực sự là bệnh X
@@ -97,11 +99,11 @@
 
 **Macro vs Weighted:**
 - **Macro**: Trung bình cộng đơn giản cho tất cả 9 lớp (mỗi lớp có trọng số bằng nhau)
-  - 89.22% Precision macro cho thấy trung bình các lớp bệnh thiếu phổ biến cũng được phân loại tốt
+- 68.95% Precision macro cho thấy hiệu năng giữa các lớp còn chênh lệch, đặc biệt với những lớp ít dữ liệu
 - **Weighted**: Trung bình có trọng số theo số lượng mẫu của mỗi lớp
-  - 96.97% Precision weighted cao vì lớp đa số (Thiếu dinh dưỡng, Bệnh loét) được phân loại rất chính xác
+   - 87.34% Precision weighted phản ánh mô hình vẫn làm tốt hơn trên các lớp có nhiều ảnh hơn
 
-**Kết luận**: Mô hình hoạt động tốt trên cả lớp đa số và thiểu số, đạt độ chính xác trên 88% cho tất cả các loại bệnh.
+**Kết luận**: Mô hình hiện tại hoạt động khá tốt trên các lớp phổ biến, nhưng vẫn bị ảnh hưởng bởi mất cân bằng dữ liệu. Các lớp ít ảnh hoặc có triệu chứng gần giống nhau cần được bổ sung dữ liệu để cải thiện hiệu năng macro.
 
 ---
 

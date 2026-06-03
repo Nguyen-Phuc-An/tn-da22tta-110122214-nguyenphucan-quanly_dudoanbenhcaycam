@@ -1,6 +1,6 @@
 """
 GIAI ĐOẠN 3: Huấn luyện model CNN phát hiện bệnh cây có múi
-Dataset: 3 thư mục ở ml/datasets/
+Dataset: Tự động lấy từ backend/uploads/training/
 Giải pháp: Load dữ liệu theo batch từ disk (không chứa trong RAM)
 Kết quả: model.h5 + disease_labels.json
 
@@ -11,7 +11,7 @@ Kết quả: model.h5 + disease_labels.json
 ║ 1. TRANSFER LEARNING (MobileNetV2)                                        ║
 ║    - Load model pretrained trên ImageNet                                  ║
 ║    - Freeze các layer cơ bản (giữ nguyên đặc trưng)                       ║
-║    - Fine-tune layer cuối trên 9 loại bệnh                               ║
+║    - Fine-tune layer cuối trên N loại bệnh (tự động phát hiện)           ║
 ║    - Kết quả: Model nhỏ, huấn luyện nhanh, độ chính xác cao              ║
 ║                                                                            ║
 ║ 2. DATA AUGMENTATION (ImageDataGenerator)                                 ║
@@ -20,7 +20,7 @@ Kết quả: model.h5 + disease_labels.json
 ║    - Horizontal Flip → Lá được chụp hai bên                               ║
 ║    - Zoom (20%) → Khoảng cách chụp khác nhau                              ║
 ║    - Rescale [0-255] → [0-1] → Chuẩn hóa giá trị pixel                   ║
-║    - Kết quả: Từ ~1600 ảnh → 100,000+ biến thể                           ║
+║    - Kết quả: Từ N ảnh → 100,000+ biến thể                               ║
 ║                                                                            ║
 ║ 3. BATCH LOADING (flow_from_directory)                                    ║
 ║    - Tải 32 ảnh/batch từ disk thay vì load toàn bộ vào RAM                ║
@@ -32,9 +32,10 @@ Kết quả: model.h5 + disease_labels.json
 ║    - 10% → Validation (phát hiện overfitting)                             ║
 ║    - 10% → Test (đánh giá cuối cùng)                                       ║
 ║                                                                            ║
-║ 5. SOFTMAX CLASSIFICATION                                                  ║
+║ 5. SOFTMAX CLASSIFICATION + CLASS WEIGHTS                                  ║
 ║    - Chuyển logit thành xác suất: P(class) = exp(logit) / Σ(exp(logit))   ║
-║    - Output: 9 giá trị [0-100%] đại diện cho 9 loại bệnh                  ║
+║    - Class weights để cân bằng dataset imbalance                          ║
+║    - Output: N giá trị [0-100%] đại diện cho N loại bệnh                  ║
 ║                                                                            ║
 ╚════════════════════════════════════════════════════════════════════════════╝
 """
@@ -56,7 +57,9 @@ from sklearn.model_selection import train_test_split
 # 1. CẤU HÌNH
 # ============================================================================
 
-DATASET_DIR = "datasets"
+# Lấy dữ liệu từ backend uploads (tự động phát hiện bệnh mới)
+BACKEND_PATH = os.path.join(os.path.dirname(__file__), "..", "backend")
+DATASET_DIR = os.path.join(BACKEND_PATH, "uploads", "training")
 MODEL_PATH = "model.h5"
 LABEL_FILE = "disease_labels.json"
 TRAINING_REPORT_FILE = "training_report.json"
@@ -64,42 +67,19 @@ IMG_SIZE = 224
 BATCH_SIZE = 32
 EPOCHS = 10
 
-# Map từ tên gốc của dataset → Tên chuẩn (9 loại)
-LABEL_MAPPING = {
-    # Dataset 1: Citrus Leaf Disease Image
-    "Black spot": "black_spot",
-    "Canker": "canker",
-    "Greening": "greening",
-    "Healthy": "healthy",
-    "Melanose": "melanose",
-    
-    # Dataset 2: Orange leaf disease dataset
-    "Citrus_Canker_Diseases_Leaf_Orange": "canker",
-    "Citrus_Nutrient_Deficiency_Yellow_Leaf_Orange": "deficiency",
-    "Healthy_Leaf_Orange": "healthy",
-    "Multiple_Diseases_Leaf_Orange": "multiple",
-    "Young_Healthy_Leaf_Orange": "healthy",
-    
-    # Dataset 3: Suriname
-    "deficiency": "deficiency",
-    "greasy spot": "greasy_spot",
-    "healthy": "healthy",
-    "huanglongbing": "greening",
-    "leafminer": "leafminer",
-    "phytophthora": "multiple",
-}
-
-# Map tiếng Việt
+# Map tiếng Việt (tự động cập nhật dựa trên bệnh có sẵn)
 LABEL_VI = {
     "black_spot": "Bệnh đốm đen",
     "canker": "Bệnh loét",
     "greening": "Bệnh vàng lá gân xanh",
     "healthy": "Lá khỏe mạnh",
-    "melanose": "Bệnh nấm melanose",
     "deficiency": "Thiếu dinh dưỡng",
     "greasy_spot": "Bệnh đốm dầu",
     "leafminer": "Sâu vẽ bùa",
     "multiple": "Nhiều bệnh",
+    "citrus_leaf_curl": "Bệnh xoăn lá",
+    "leaf_eating_worm": "Sâu ăn lá",
+    "melanose": "Bệnh nấm melanose",
 }
 
 print("=" * 70)
@@ -113,13 +93,36 @@ print()
 
 
 # ============================================================================
-# 2. CHUẨN HÓA DATASET (Gộp 3 dataset vào folder chuẩn)
+# 2. HỖ TRỢ CHỨC NĂNG
+# ============================================================================
+
+def normalize_disease_name(name):
+    """Chuẩn hóa tên bệnh: chuyển thành slug (lowercase, no spaces, no accents)"""
+    import unicodedata
+    
+    # Xóa diacritics (ế, á, etc)
+    nfd = unicodedata.normalize('NFD', name)
+    without_accents = ''.join(c for c in nfd if unicodedata.category(c) != 'Mn')
+    
+    # Chuyển thành lowercase, thay space bằng underscore
+    slug = without_accents.lower().strip()
+    slug = slug.replace(' ', '_')
+    slug = slug.replace('-', '_')
+    
+    # Giữ chỉ alphanumeric + underscore
+    slug = ''.join(c for c in slug if c.isalnum() or c == '_')
+    
+    return slug
+
+
+# ============================================================================
+# 3. CHUẨN HÓA DATASET (Gộp dữ liệu gốc + ảnh upload mới)
 # ============================================================================
 
 def organize_dataset():
-    """Gộp 3 dataset vào folder chuẩn hóa (organized/disease_name/)"""
+    """Gộp dữ liệu gốc từ datasets/ + ảnh upload mới từ backend/uploads/training/"""
     
-    print("📂 Đang chuẩn hóa dataset...")
+    print("📂 Đang sắp xếp dataset (gộp dữ liệu gốc + upload mới)...")
     
     organized_dir = "organized_dataset"
     
@@ -131,50 +134,114 @@ def organize_dataset():
     
     # Đếm ảnh
     image_count = {}
+    image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.webp', '.JPG', '.JPEG', '.PNG', '.BMP', '.WEBP'}
     
-    # Duyệt qua 3 dataset
-    dataset_path = Path(DATASET_DIR)
-    for dataset_dir in dataset_path.iterdir():
-        if not dataset_dir.is_dir():
-            continue
+    # ========== BƯỚC 1: Copy dữ liệu gốc từ ml/datasets/ (8 class) ==========
+    print("\n  📁 Source 1: Dataset gốc (ml/datasets/)")
+    original_datasets_path = Path("datasets")
+    
+    LABEL_MAPPING = {
+        "Black spot": "black_spot",
+        "Canker": "canker",
+        "Greening": "greening",
+        "Healthy": "healthy",
+        "Citrus_Canker_Diseases_Leaf_Orange": "canker",
+        "Citrus_Nutrient_Deficiency_Yellow_Leaf_Orange": "deficiency",
+        "Healthy_Leaf_Orange": "healthy",
+        "Multiple_Diseases_Leaf_Orange": "multiple",
+        "Young_Healthy_Leaf_Orange": "healthy",
+        "deficiency": "deficiency",
+        "greasy spot": "greasy_spot",
+        "huanglongbing": "greening",
+        "leafminer": "leafminer",
+        "phytophthora": "multiple",
+    }
+    
+    if original_datasets_path.exists():
+        for dataset_dir in original_datasets_path.iterdir():
+            if not dataset_dir.is_dir():
+                continue
+            
+            for disease_dir in dataset_dir.iterdir():
+                if not disease_dir.is_dir():
+                    continue
+                
+                disease_name = disease_dir.name
+                
+                # Skip nếu chưa map
+                if disease_name not in LABEL_MAPPING:
+                    continue
+                
+                standardized_name = LABEL_MAPPING[disease_name]
+                standardized_path = os.path.join(organized_dir, standardized_name)
+                os.makedirs(standardized_path, exist_ok=True)
+                
+                # Copy ảnh
+                image_files = [f for f in disease_dir.iterdir() 
+                             if f.is_file() and f.suffix in image_extensions]
+                
+                for img_file in image_files:
+                    try:
+                        dst = os.path.join(standardized_path, img_file.name)
+                        shutil.copy2(img_file, dst)
+                        image_count[standardized_name] = image_count.get(standardized_name, 0) + 1
+                    except Exception as e:
+                        print(f"    ✗ Lỗi copy {img_file.name}: {e}")
         
-        # Duyệt qua từng thư mục bệnh
-        for disease_dir in dataset_dir.iterdir():
+        # In tổng từ source 1
+        source1_total = sum(image_count.values())
+        print(f"    ✓ Sao chép xong: {source1_total} ảnh")
+    else:
+        print(f"    ⚠️  Không tìm thấy datasets/ (OK nếu chỉ dùng upload mới)")
+    
+    # ========== BƯỚC 2: Copy ảnh upload mới từ backend/uploads/training/ ==========
+    print("\n  📁 Source 2: Upload mới (backend/uploads/training/)")
+    backend_training_path = Path(DATASET_DIR)
+    
+    source2_count = 0
+    if backend_training_path.exists():
+        for disease_dir in backend_training_path.iterdir():
             if not disease_dir.is_dir():
                 continue
             
             disease_name = disease_dir.name
             
-            # Skip nếu chưa map
-            if disease_name not in LABEL_MAPPING:
-                continue
+            # Chuẩn hóa tên: "Sâu ăn lá" → "sau_an_la"
+            normalized_name = normalize_disease_name(disease_name)
             
-            standardized_name = LABEL_MAPPING[disease_name]
-            standardized_path = os.path.join(organized_dir, standardized_name)
+            # Tạo thư mục chuẩn hóa
+            standardized_path = os.path.join(organized_dir, normalized_name)
             os.makedirs(standardized_path, exist_ok=True)
             
             # Copy ảnh
-            image_files = list(disease_dir.glob("*.jpg")) + \
-                         list(disease_dir.glob("*.png")) + \
-                         list(disease_dir.glob("*.JPG")) + \
-                         list(disease_dir.glob("*.PNG"))
+            image_files = [f for f in disease_dir.iterdir() 
+                         if f.is_file() and f.suffix in image_extensions]
             
             for img_file in image_files:
                 try:
                     dst = os.path.join(standardized_path, img_file.name)
                     shutil.copy2(img_file, dst)
-                    image_count[standardized_name] = image_count.get(standardized_name, 0) + 1
+                    image_count[normalized_name] = image_count.get(normalized_name, 0) + 1
+                    source2_count += 1
                 except Exception as e:
-                    print(f"  ✗ Lỗi copy {img_file}: {e}")
+                    print(f"    ✗ Lỗi copy {img_file.name}: {e}")
+        
+        print(f"    ✓ Sao chép xong: {source2_count} ảnh upload mới")
+    else:
+        print(f"    ⚠️  Không tìm thấy {DATASET_DIR}")
     
-    # In kết quả
-    print(f"✓ Chuẩn hóa xong ({organized_dir})")
+    # In kết quả gộp
+    if not image_count:
+        print(f"\n❌ Không tìm thấy ảnh nào từ cả 2 nguồn!")
+        return None, {}
+    
+    print(f"\n✓ Sắp xếp xong ({organized_dir})")
     print(f"  Phân bố ảnh:")
     total_images = 0
     for disease, count in sorted(image_count.items()):
         print(f"    - {disease}: {count} ảnh")
         total_images += count
-    print(f"  📊 Tổng: {total_images} ảnh\n")
+    print(f"  📊 Tổng: {total_images} ảnh (gốc: {sum(image_count.values()) - source2_count}, upload: {source2_count})\n")
     
     return organized_dir, image_count
 
@@ -333,6 +400,32 @@ def train_model(model, train_gen, val_gen, num_classes):
     print(f"  ⏳ Train steps/epoch: {train_steps}")
     print(f"  ⏳ Val steps/epoch: {val_steps}\n")
     
+    # Tính class weights để cân bằng dataset imbalance
+    # DirectoryIterator không có samples_per_class, nên phải đếm file thủ công
+    class_weights = {}
+    samples_per_class = {}
+    
+    # Đếm ảnh trong mỗi class folder
+    image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.webp', '.JPG', '.JPEG', '.PNG', '.BMP', '.WEBP'}
+    for class_name in train_gen.class_indices.keys():
+        class_dir = os.path.join(train_gen.directory, class_name)
+        if os.path.isdir(class_dir):
+            num_files = len([f for f in os.listdir(class_dir) 
+                           if os.path.isfile(os.path.join(class_dir, f)) 
+                           and os.path.splitext(f)[1] in image_extensions])
+            samples_per_class[class_name] = num_files
+    
+    total_samples = sum(samples_per_class.values())
+    
+    print("⚖️ Class Weights (cân bằng dataset imbalance):")
+    for class_name, num_samples in samples_per_class.items():
+        class_index = train_gen.class_indices[class_name]
+        weight = total_samples / (num_classes * max(num_samples, 1))
+        class_weights[class_index] = weight
+        print(f"    {class_name}: weight={weight:.3f} ({num_samples} ảnh)")
+    
+    print()
+    
     # Train
     history = model.fit(
         train_gen,
@@ -340,6 +433,7 @@ def train_model(model, train_gen, val_gen, num_classes):
         validation_data=val_gen,
         validation_steps=val_steps,
         epochs=EPOCHS,
+        class_weight=class_weights if class_weights else None,
         verbose=1
     )
     

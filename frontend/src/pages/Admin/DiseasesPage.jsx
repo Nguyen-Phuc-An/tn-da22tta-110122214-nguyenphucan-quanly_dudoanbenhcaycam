@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import { useForm } from 'react-hook-form';
 
 const DiseasesPage = () => {
+  const HIDDEN_DISEASES = new Set(['melanose']);
   const [diseases, setDiseases] = useState([]);
   const [fertilizers, setFertilizers] = useState([]);
   const [pesticides, setPesticides] = useState([]);
@@ -58,8 +59,9 @@ const DiseasesPage = () => {
     try {
       setLoading(true);
       const res = await apiClient.get('/diseases');
-      console.log('✓ Diseases loaded:', res.data.data?.length || 0);
-      setDiseases(res.data.data || []);
+      const visibleDiseases = (res.data.data || []).filter((disease) => !HIDDEN_DISEASES.has(disease.ten_benh_en));
+      console.log('✓ Diseases loaded:', visibleDiseases.length);
+      setDiseases(visibleDiseases);
     } catch (err) {
       console.error('❌ Error fetching diseases:', err);
       toast.error('Không thể tải danh sách bệnh');
@@ -99,6 +101,7 @@ const DiseasesPage = () => {
   };
 
   const handleEdit = (disease) => {
+    if (HIDDEN_DISEASES.has(disease.ten_benh_en)) return;
     setEditingId(disease._id);
     reset({
       ...disease,
@@ -192,13 +195,13 @@ const DiseasesPage = () => {
     }
   };
 
-  const filteredDiseases = diseases.filter(
+  const filteredDiseases = diseases.filter((disease) => !HIDDEN_DISEASES.has(disease.ten_benh_en)).filter(
     (disease) =>
       disease.ten_benh?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       disease.ten_benh_en?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const ITEMS_PER_PAGE = 8;
+  const ITEMS_PER_PAGE = 12;
   const totalPages = Math.max(1, Math.ceil(filteredDiseases.length / ITEMS_PER_PAGE));
   const currentPageSafe = Math.min(currentPage, totalPages);
   const startIndex = (currentPageSafe - 1) * ITEMS_PER_PAGE;

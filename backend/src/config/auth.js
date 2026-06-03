@@ -45,7 +45,7 @@ const jwt = require('jsonwebtoken');
  */
 
 // Middleware kiểm tra JWT token
-const authenticateToken = (req, res, next) => {
+const authenticateToken = async (req, res, next) => {
   // Lấy token từ header Authorization
   const authHeader = req.headers['authorization'];
   let token = authHeader && authHeader.split(' ')[1]; // "Bearer TOKEN"
@@ -65,22 +65,21 @@ const authenticateToken = (req, res, next) => {
   try {
     // Xác minh token
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret123');
-    req.userId = decoded.userId;
 
-    // Lấy thêm vai trò nếu cần
+    // Lấy user hiện tại từ DB để tránh token cũ trỏ tới user đã bị xóa
     const User = require('../models/User');
-    User.findById(decoded.userId)
-      .then((user) => {
-        if (user) {
-          req.userRole = user.vai_tro;
-        }
-        next();
-      })
-      .catch((error) => {
-        console.error('❌ Lỗi lấy user role:', error.message);
-        // Vẫn tiếp tục nếu không thể lấy role
-        next();
+    const user = await User.findById(decoded.userId).select('vai_tro');
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Phiên đăng nhập không còn hợp lệ. Vui lòng đăng nhập lại.',
       });
+    }
+
+    req.userId = decoded.userId;
+    req.userRole = user.vai_tro;
+    next();
   } catch (error) {
     console.error('❌ Lỗi xác minh token:', error.message);
     res.status(403).json({

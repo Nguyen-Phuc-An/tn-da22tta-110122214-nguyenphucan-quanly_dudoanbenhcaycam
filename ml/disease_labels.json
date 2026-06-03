@@ -2,35 +2,38 @@
   "classes": [
     "black_spot",
     "canker",
+    "citrus_leaf_curl",
     "deficiency",
     "greasy_spot",
     "greening",
     "healthy",
+    "leaf_eating_worm",
     "leafminer",
-    "melanose",
     "multiple"
   ],
   "class_indices": {
     "black_spot": 0,
     "canker": 1,
-    "deficiency": 2,
-    "greasy_spot": 3,
-    "greening": 4,
-    "healthy": 5,
-    "leafminer": 6,
-    "melanose": 7,
-    "multiple": 8
+    "citrus_leaf_curl": 2,
+    "deficiency": 3,
+    "greasy_spot": 4,
+    "greening": 5,
+    "healthy": 6,
+    "leaf_eating_worm": 7,
+    "leafminer": 8,
+    "multiple": 9
   },
   "class_vi": {
     "black_spot": "Bệnh đốm đen",
     "canker": "Bệnh loét",
+    "citrus_leaf_curl": "Bệnh xoăn lá",
     "deficiency": "Thiếu dinh dưỡng",
     "greasy_spot": "Bệnh đốm dầu",
     "greening": "Bệnh vàng lá gân xanh",
     "healthy": "Lá khỏe mạnh",
+    "leaf_eating_worm": "Sâu ăn lá",
     "leafminer": "Sâu vẽ bùa",
-    "melanose": "Bệnh nấm melanose",
     "multiple": "Nhiều bệnh"
   },
-  "num_classes": 9
+  "num_classes": 10
 }

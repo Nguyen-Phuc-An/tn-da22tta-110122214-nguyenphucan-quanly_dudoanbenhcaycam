@@ -10,6 +10,7 @@ const MODEL_PATH = path.resolve(__dirname, '../../../ml/model.h5');
 const TRAINING_REPORT_PATH = path.resolve(__dirname, '../../../ml/training_report.json');
 const RETRAIN_SCRIPT = path.resolve(__dirname, '../../scripts/retrain_model.py');
 const PYTHON_EXE = path.resolve(__dirname, '../../../ml/venv/Scripts/python.exe');
+const EXCLUDED_DISEASES = new Set(['melanose']);
 
 // ===== PROGRESS TRACKING =====
 let trainingProgress = {
@@ -72,6 +73,38 @@ const isBenignStderrLine = (line) => {
   );
 };
 
+const normalizeDiseaseKey = (value) => {
+  if (!value) return '';
+
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .replace(/_+/g, '_');
+};
+
+const mergeEvaluationMetrics = (progressMetrics, diskMetrics) => {
+  if (!progressMetrics && !diskMetrics) {
+    return null;
+  }
+
+  const merged = {
+    ...(progressMetrics || {}),
+    ...(diskMetrics || {}),
+  };
+
+  if (diskMetrics?.test) {
+    merged.test = diskMetrics.test;
+  } else if (progressMetrics?.test) {
+    merged.test = progressMetrics.test;
+  }
+
+  return merged;
+};
+
 // Khởi tạo folder
 if (!fs.existsSync(TRAINING_IMAGES_DIR)) {
   fs.mkdirSync(TRAINING_IMAGES_DIR, { recursive: true });
@@ -87,19 +120,13 @@ const uploadTrainingImages = async (req, res) => {
       });
     }
 
-    const { disease_name } = req.body;
+    const rawDiseaseName = req.body.disease_name || req.query.disease_name;
+    const disease_name = normalizeDiseaseKey(rawDiseaseName);
+
     if (!disease_name) {
       return res.status(400).json({
         success: false,
         message: 'Disease name required',
-      });
-    }
-
-    // Validate disease_name (alphanumeric + underscore)
-    if (!/^[a-z0-9_]+$/.test(disease_name)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid disease name format',
       });
     }
 
@@ -159,14 +186,19 @@ const getTrainingStatus = async (req, res) => {
 
     const diseaseDocs = await Disease.find({}, { ten_benh: 1, ten_benh_en: 1 }).lean();
     const diseaseMetaMap = diseaseDocs.reduce((accumulator, diseaseDoc) => {
-      accumulator[diseaseDoc.ten_benh_en] = {
-        ten_benh: diseaseDoc.ten_benh,
-        ten_benh_en: diseaseDoc.ten_benh_en,
+      const uploadKey = normalizeDiseaseKey(diseaseDoc.ten_benh_en || diseaseDoc.ten_benh);
+      if (!uploadKey) return accumulator;
+
+      const existing = accumulator[uploadKey] || {};
+      accumulator[uploadKey] = {
+        ten_benh: existing.ten_benh || diseaseDoc.ten_benh || diseaseDoc.ten_benh_en,
+        ten_benh_en: existing.ten_benh_en || diseaseDoc.ten_benh_en || uploadKey,
+        upload_key: uploadKey,
       };
       return accumulator;
     }, {});
 
-    // Get 9 original diseases
+    // Get original diseases used by ML training
     const original_diseases = [
       'black_spot',
       'canker',
@@ -175,24 +207,35 @@ const getTrainingStatus = async (req, res) => {
       'greening',
       'healthy',
       'leafminer',
-      'melanose',
       'multiple',
-    ];
+    ].filter((disease) => !EXCLUDED_DISEASES.has(disease));
+
+    // Include diseases created in the DB so the upload page can show newly added diseases too
+    const diseaseKeysFromDB = diseaseDocs
+      .map((diseaseDoc) => {
+        const uploadKey = normalizeDiseaseKey(diseaseDoc.ten_benh_en || diseaseDoc.ten_benh);
+        return uploadKey;
+      })
+      .filter(Boolean)
+      .filter((disease) => !EXCLUDED_DISEASES.has(disease));
+
+    const diseaseKeys = Array.from(new Set([...original_diseases, ...diseaseKeysFromDB]));
 
     const status = {};
     let total_original = 0;
     let total_training = 0;
 
     // Count original dataset
-    original_diseases.forEach((disease) => {
+    diseaseKeys.forEach((disease) => {
       const disease_path = path.join(ORGANIZED_DATASET_DIR, disease);
       const count = fs.existsSync(disease_path)
         ? fs.readdirSync(disease_path).filter((f) => /\.(jpg|png|jpeg)$/i.test(f)).length
         : 0;
       status[disease] = {
         count,
-        source: 'original',
+        source: original_diseases.includes(disease) ? 'original' : 'new',
         new_images: 0,
+        upload_key: disease,
         ...(diseaseMetaMap[disease] || {}),
       };
       total_original += count;
@@ -202,6 +245,10 @@ const getTrainingStatus = async (req, res) => {
     // Count training uploads
     if (fs.existsSync(TRAINING_IMAGES_DIR)) {
       fs.readdirSync(TRAINING_IMAGES_DIR).forEach((disease) => {
+        if (EXCLUDED_DISEASES.has(disease)) {
+          return;
+        }
+
         const training_path = path.join(TRAINING_IMAGES_DIR, disease);
         if (fs.statSync(training_path).isDirectory()) {
           const count = fs.readdirSync(training_path)
@@ -217,6 +264,7 @@ const getTrainingStatus = async (req, res) => {
               source: 'new',
               new_images: count,
               total: count,
+              upload_key: normalizeDiseaseKey(disease),
               ...(diseaseMetaMap[disease] || {}),
             };
           }
@@ -225,20 +273,45 @@ const getTrainingStatus = async (req, res) => {
       });
     }
 
+    // Merge any duplicate entries that resolve to the same upload_key
+    const mergedStatus = Object.values(status).reduce((accumulator, item) => {
+      const key = item.upload_key || normalizeDiseaseKey(item.ten_benh_en || item.ten_benh);
+      if (!key) return accumulator;
+
+      if (!accumulator[key]) {
+        accumulator[key] = { ...item, upload_key: key };
+        return accumulator;
+      }
+
+      accumulator[key] = {
+        ...accumulator[key],
+        ten_benh: accumulator[key].ten_benh || item.ten_benh,
+        ten_benh_en: accumulator[key].ten_benh_en || item.ten_benh_en,
+        count: Math.max(Number(accumulator[key].count || 0), Number(item.count || 0)),
+        new_images: Math.max(Number(accumulator[key].new_images || 0), Number(item.new_images || 0)),
+        total: Math.max(Number(accumulator[key].total || 0), Number(item.total || 0)),
+      };
+
+      return accumulator;
+    }, {});
+
     const diskReport = readTrainingReportFromDisk();
+
+    const evaluation = mergeEvaluationMetrics(trainingProgress.metrics, diskReport?.evaluation);
+    const trainingResults = diskReport?.trainingResults || trainingProgress.trainingResults || null;
 
     res.json({
       success: true,
       data: {
-        status,
+          status: mergedStatus,
         summary: {
-          total_diseases: Object.keys(status).length,
+          total_diseases: Object.keys(mergedStatus).length,
           original_images: total_original,
           training_images: total_training,
           total_images: total_original + total_training,
         },
-        evaluation: trainingProgress.metrics || diskReport?.evaluation || null,
-        trainingResults: trainingProgress.trainingResults || diskReport?.trainingResults || null,
+        evaluation,
+        trainingResults,
       },
     });
   } catch (error) {
@@ -316,6 +389,20 @@ const triggerRetrain = async (req, res) => {
           broadcastProgress();
         } catch (parseError) {
           console.error('⚠️ Failed to parse training metrics:', parseError.message);
+        }
+      }
+
+      const testMetricsMatch = output.match(/METRICS_TEST:(\{.*\})/);
+      if (testMetricsMatch) {
+        try {
+          const testMetrics = JSON.parse(testMetricsMatch[1]);
+          trainingProgress.metrics = {
+            ...(trainingProgress.metrics || {}),
+            test: testMetrics,
+          };
+          broadcastProgress();
+        } catch (parseError) {
+          console.error('⚠️ Failed to parse test metrics:', parseError.message);
         }
       }
 
