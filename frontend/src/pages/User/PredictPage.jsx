@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaImage, FaCamera, FaFlask, FaCheck, FaEye, FaTimes, FaMicroscope, FaTrophy, FaList, FaBrain, FaChartBar, FaHourglassHalf } from 'react-icons/fa';
+import { 
+  FaImage, FaCamera, FaFlask, FaCheck, FaEye, FaTimes, 
+  FaMicroscope, FaTrophy, FaList, FaBrain, FaChartBar, 
+  FaHourglassHalf, FaExclamationTriangle, FaInfoCircle 
+} from 'react-icons/fa';
 import UserLayout from '../../components/User/UserLayout';
 import apiClient from '../../services/apiClient';
 import toast from 'react-hot-toast';
@@ -19,6 +23,7 @@ const PredictPage = () => {
   const [selectedPrediction, setSelectedPrediction] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
+  const CONFIDENCE_THRESHOLD = 80;
 
   useEffect(() => {
     fetchPredictions();
@@ -125,6 +130,13 @@ const PredictPage = () => {
     if (!gradCamPath) return '';
     if (gradCamPath.startsWith('http')) return gradCamPath;
     return `http://localhost:5000${gradCamPath}`;
+  };
+  
+  const formatAIText = (text) => {
+    if (!text) return '';
+    return text
+      .replace(/\*\*/g, '')   // bỏ markdown **
+      .trim();
   };
 
   // Pagination logic
@@ -238,27 +250,76 @@ const PredictPage = () => {
           <div className="bg-white rounded-xl shadow-md p-6">
             {result ? (
               <div className="space-y-6">
-                <h3 className="text-2xl font-bold text-gray-900">Kết quả dự đoán</h3>
-
-                {/* Top Result */}
-                <div className="bg-green-50 rounded-xl p-4 border-2 border-green-200">
-                  <p className="text-gray-600 text-sm flex items-center gap-2"><FaTrophy className="text-yellow-500" /> Bệnh chính xác suất cao</p>
-                  <p className="text-2xl font-bold text-gray-900">{result.main_disease}</p>
-                  <div className="mt-3 flex items-center gap-2">
-                    <div className="flex-1 bg-gray-300 rounded-full h-2 overflow-hidden">
-                      <div
-                        className="bg-green-600 h-2 rounded-full transition-all"
-                        style={{ width: `${Math.min(getConfidencePercent(result.confidence), 100)}%` }}
-                      />
+                {/* Top Result OR Low Confidence Warning */}
+                {getConfidencePercent(result.confidence) < CONFIDENCE_THRESHOLD ? (
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-5 shadow-sm space-y-4">
+                    {/* Header */}
+                    <div className="flex items-start gap-3">
+                      <div className="bg-red-100 text-red-600 p-2 rounded-full">
+                        <FaExclamationTriangle />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-red-700 text-base">
+                          Kết quả không đủ độ tin cậy
+                        </p>
+                        <p className="text-xs text-red-500">
+                          Confidence dưới ngưỡng hệ thống yêu cầu
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-lg font-bold text-green-600 min-w-fit">
-                      {getConfidencePercent(result.confidence)}%
-                    </p>
+
+                    {/* Nội dung */}
+                    <div className="text-sm text-gray-700 leading-relaxed space-y-2">
+                      <p>
+                        Mô hình học máy không thể <span className="font-semibold">trích xuất đặc trưng hình ảnh</span> một cách rõ ràng
+                        từ dữ liệu đầu vào.
+                      </p>
+
+                      <ul className="list-disc pl-5 space-y-1 text-gray-600">
+                        <li>Ảnh đầu vào bị mờ, nhiễu hoặc điều kiện ánh sáng chưa phù hợp</li>
+                        <li>Vùng lá bệnh không được thể hiện rõ hoặc không phải là vùng đặc trưng</li>
+                        <li>Bệnh chưa xuất hiện trong tập dữ liệu huấn luyện của mô hình</li>
+                        <li>Biểu hiện bệnh không điển hình hoặc đang ở giai đoạn sớm</li>
+                      </ul>
+                      <p>
+                        Do đó, độ tin cậy của mô hình <span className="font-semibold text-red-600">không đạt ngưỡng chấp nhận</span>.
+                      </p>
+                    </div>
+
+                    {/* Gợi ý */}
+                    <div className="bg-white border border-red-100 rounded-lg p-3 flex items-start gap-2">
+                      <FaInfoCircle className="text-red-500 mt-1" />
+                      <p className="text-sm text-gray-700">
+                        Để cải thiện kết quả, nên cung cấp ảnh có <span className="font-semibold">độ phân giải cao</span>, 
+                        ánh sáng đầy đủ và tập trung rõ vào khu vực lá có dấu hiệu bất thường.
+                      </p>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="bg-green-50 rounded-xl p-4 border-2 border-green-200">
+                    <p className="text-gray-600 text-sm flex items-center gap-2">
+                      <FaTrophy className="text-yellow-500" /> Bệnh chính xác suất cao
+                    </p>
+                    <p className="text-2xl font-bold text-gray-900">{result.main_disease}</p>
+
+                    <div className="mt-3 flex items-center gap-2">
+                      <div className="flex-1 bg-gray-300 rounded-full h-2 overflow-hidden">
+                        <div
+                          className="bg-green-600 h-2 rounded-full transition-all"
+                          style={{
+                            width: `${Math.min(getConfidencePercent(result.confidence), 100)}%`,
+                          }}
+                        />
+                      </div>
+                      <p className="text-lg font-bold text-green-600 min-w-fit">
+                        {getConfidencePercent(result.confidence)}%
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {/* Top 3 Predictions */}
-                {result.top_3 && (
+                {getConfidencePercent(result.confidence) >= CONFIDENCE_THRESHOLD && result.top_3 && (
                   <div>
                     <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2"><FaList className="text-blue-600" /> Top 3 bệnh khả năng</h4>
                     <p className="mb-3 text-sm text-gray-600">Chọn 1 bệnh bên dưới để AI tư vấn đúng theo kết quả bạn muốn xem.</p>
@@ -290,7 +351,8 @@ const PredictPage = () => {
                 )}
 
                 {/* AI Advice */}
-                {(selectedAdviceLoading || selectedAdvice || selectedTopDisease) && (
+                {getConfidencePercent(result.confidence) >= CONFIDENCE_THRESHOLD &&
+                (selectedAdviceLoading || selectedAdvice || selectedTopDisease) && (
                   <div className={`rounded-lg p-4 border-l-4 ${selectedAdviceLoading ? 'bg-purple-100 border-purple-500' : 'bg-purple-50 border-purple-500'}`}>
                     <p className="text-gray-600 text-sm font-semibold mb-2 flex items-center gap-2">
                       <FaBrain className="text-purple-600" />
@@ -320,8 +382,8 @@ const PredictPage = () => {
                         <p className="text-sm font-semibold text-gray-800">
                           Tư vấn cho: {selectedTopDisease.ten_benh}
                         </p>
-                        <p className="text-sm text-gray-800 whitespace-pre-wrap">
-                          {selectedAdvice}
+                        <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed text-justify">
+                          {formatAIText(selectedAdvice)}
                         </p>
                       </div>
                     )}
@@ -453,8 +515,8 @@ const PredictPage = () => {
                       {selectedPrediction.tuvan_ai && (
                         <div>
                           <p className="text-xs text-gray-600 uppercase font-semibold">Tư Vấn AI</p>
-                          <p className="text-sm text-gray-800 bg-purple-50 rounded p-3 border-l-4 border-purple-500 whitespace-pre-wrap">
-                            {selectedPrediction.tuvan_ai}
+                          <p className="text-sm text-gray-800 bg-purple-50 rounded p-3 border-l-4 border-purple-500 whitespace-pre-wrap leading-relaxed text-justify">
+                            {formatAIText(selectedPrediction.tuvan_ai)}
                           </p>
                         </div>
                       )}

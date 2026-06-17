@@ -160,7 +160,7 @@ const UsersPage = () => {
       user.email?.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const ITEMS_PER_PAGE = 8;
+  const ITEMS_PER_PAGE = 9;
   const totalPages = Math.max(1, Math.ceil(filteredUsers.length / ITEMS_PER_PAGE));
   const currentPageSafe = Math.min(currentPage, totalPages);
   const startIndex = (currentPageSafe - 1) * ITEMS_PER_PAGE;

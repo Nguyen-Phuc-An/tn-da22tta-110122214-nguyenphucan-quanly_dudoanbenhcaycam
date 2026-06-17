@@ -340,7 +340,6 @@ const AdminDashboardPage = () => {
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm border-t-4 border-t-gray-900">
             <p className="text-sm font-medium text-slate-500">Độ tin cậy TB</p>
             <p className="mt-2 text-3xl font-bold text-slate-900">{formatPercent(dashboard.avgConfidence)}</p>
-            <p className="mt-2 text-xs text-slate-500">Tính từ do_tin_cay</p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm border-t-4 border-t-gray-700">
             <p className="text-sm font-medium text-slate-500">Low-confidence</p>
@@ -350,12 +349,10 @@ const AdminDashboardPage = () => {
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm border-t-4 border-t-gray-800">
             <p className="text-sm font-medium text-slate-500">Thời gian xử lý TB</p>
             <p className="mt-2 text-3xl font-bold text-slate-900">{Math.round(dashboard.avgProcessingTime)} ms</p>
-            <p className="mt-2 text-xs text-slate-500">Từ thoi_gian_xu_ly_ms</p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm border-t-4 border-t-gray-900">
             <p className="text-sm font-medium text-slate-500">Tổng ảnh huấn luyện</p>
             <p className="mt-2 text-3xl font-bold text-slate-900">{formatNumber(summary.total_images)}</p>
-            <p className="mt-2 text-xs text-slate-500">Lấy từ /api/ml/status</p>
           </div>
         </div>
 

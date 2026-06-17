@@ -16,7 +16,7 @@ const policyItems = [
   {
     icon: FaUserShield,
     title: 'Phạm vi sử dụng',
-    text: 'Dữ liệu của bạn được dùng để vận hành tính năng của CitrusCare và không chia sẻ tùy tiện cho bên thứ ba.',
+    text: 'Dữ liệu của bạn được dùng để vận hành tính năng của MAP Citrus và không chia sẻ tùy tiện cho bên thứ ba.',
   },
 ];
 
@@ -31,7 +31,7 @@ const PrivacyPage = () => {
               <FaShieldAlt /> Chính sách bảo mật
             </h1>
             <p className="max-w-3xl text-white/85 leading-relaxed">
-              Trang này mô tả cách CitrusCare thu thập, lưu trữ và sử dụng dữ liệu trong phạm vi chức năng của hệ thống.
+              Trang này mô tả cách MAP Citrus thu thập, lưu trữ và sử dụng dữ liệu trong phạm vi chức năng của hệ thống.
             </p>
           </div>
 

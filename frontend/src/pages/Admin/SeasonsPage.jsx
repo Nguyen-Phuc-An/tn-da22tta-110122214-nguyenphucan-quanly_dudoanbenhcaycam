@@ -104,12 +104,21 @@ const SeasonsPage = () => {
     }
   };
 
-  const filteredSeasons = seasons.filter(
-    (season) =>
-      season.ten_mua_vu?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredSeasons = seasons
+  .filter((season) =>
+    season.ten_mua_vu?.toLowerCase().includes(searchTerm.toLowerCase())
+  )
+  .sort((a, b) => {
+    // So sánh năm trước
+    if (b.nam !== a.nam) {
+      return b.nam - a.nam; // năm lớn hơn lên trước
+    }
 
-  const ITEMS_PER_PAGE = 8;
+    // Nếu cùng năm thì so sánh tháng bắt đầu
+    return (b.thang_bat_dau || 0) - (a.thang_bat_dau || 0);
+  });
+
+  const ITEMS_PER_PAGE = 10;
   const totalPages = Math.max(1, Math.ceil(filteredSeasons.length / ITEMS_PER_PAGE));
   const currentPageSafe = Math.min(currentPage, totalPages);
   const startIndex = (currentPageSafe - 1) * ITEMS_PER_PAGE;

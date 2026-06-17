@@ -121,7 +121,7 @@ const createLog = async (req, res) => {
       ngay_lam: ngay_lam || new Date(),
       ghi_chu: ghi_chu || '',
       is_completed: parseBoolean(is_completed, false),
-      nguoi_thuc_hien: nguoi_thuc_hien || '',
+      nguoi_thuc_hien: nguoi_thuc_hien || user.ho_ten,
     });
 
     await log.save();
@@ -293,7 +293,14 @@ const updateLog = async (req, res) => {
     // Cập nhật các field khác
     if (ngay_lam) log.ngay_lam = ngay_lam;
     if (ghi_chu !== undefined) log.ghi_chu = ghi_chu;
-    if (nguoi_thuc_hien !== undefined) log.nguoi_thuc_hien = nguoi_thuc_hien;
+    if (nguoi_thuc_hien !== undefined) {
+      if (!nguoi_thuc_hien || nguoi_thuc_hien.trim() === '') {
+        // Nếu rỗng → fallback về tên user
+        log.nguoi_thuc_hien = user.ho_ten;
+      } else {
+        log.nguoi_thuc_hien = nguoi_thuc_hien;
+      }
+    };
     if (is_completed !== undefined) log.is_completed = parseBoolean(is_completed, log.is_completed);
 
     await log.save();

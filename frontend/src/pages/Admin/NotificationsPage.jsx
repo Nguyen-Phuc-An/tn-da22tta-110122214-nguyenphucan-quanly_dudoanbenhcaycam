@@ -84,15 +84,6 @@ const NotificationsPage = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  useEffect(() => {
-    if (loaiThongBao === 'kiem_soat') {
-      setValue('doi_tuong_nhan', 'all', { shouldValidate: true });
-      setSelectedRecipients([]);
-      setGroupSearch('');
-      setGroupSuggestionOpen(false);
-    }
-  }, [loaiThongBao, setValue]);
-
   const fetchNotifications = async () => {
     try {
       setLoading(true);
@@ -142,7 +133,7 @@ const NotificationsPage = () => {
       return userId || '';
     }
 
-    return `${user.ho_ten || 'Không rõ tên'} (${user.email || 'không có email'})`;
+    return `${user.ho_ten || 'Không rõ tên'}`;
   };
 
   const handleSelectUser = (user) => {
@@ -401,7 +392,6 @@ const NotificationsPage = () => {
                   </label>
                   <select
                     {...register('doi_tuong_nhan')}
-                    disabled={loaiThongBao === 'kiem_soat'}
                     className="w-full rounded-lg border border-gray-300 px-4 py-2.5 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-100 disabled:cursor-not-allowed disabled:bg-gray-100"
                   >
                     <option value="all">all</option>
@@ -423,7 +413,7 @@ const NotificationsPage = () => {
                   </div>
                 </div>
 
-                {doiTuongNhan === 'group' && loaiThongBao !== 'kiem_soat' && (
+                {doiTuongNhan === 'group' && (
                   <div ref={groupPickerRef} className="relative lg:col-span-2">
                     <label className="mb-2 block text-sm font-semibold text-gray-700">
                       Nhóm người nhận <span className="text-red-600">*</span>
@@ -661,7 +651,7 @@ const NotificationsPage = () => {
                           : (notification.ghi_chu?.trim() || '—')}
                       </p>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-gray-600">
+                    <td className="px-6 py-4 text-gray-600 max-w-[250px] truncate">
                       <span className="inline-flex rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700">
                         {notification.doi_tuong_nhan === 'all'
                           ? 'Tất cả user'

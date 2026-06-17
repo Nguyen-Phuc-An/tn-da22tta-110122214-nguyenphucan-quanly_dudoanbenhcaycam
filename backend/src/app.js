@@ -47,7 +47,7 @@ const initializeAdminUser = async () => {
 
     // Tạo admin user
     const adminUser = new User({
-      ho_ten: 'Administrator',
+      ho_ten: 'Cán bộ Quản trị',
       email: 'admin@gmail.com',
       mat_khau: 'admin123',
       vai_tro: 'admin',

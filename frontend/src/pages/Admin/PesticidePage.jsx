@@ -196,7 +196,7 @@ const PesticidePage = () => {
             <table className="w-full table-fixed">
               <thead className="bg-gray-50 border-b">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase w-80">Tên Thuốc</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase w-40">Tên Thuốc</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-700 uppercase w-20">Loại</th>
                   <th className="px-3 py-3 text-left text-xs font-medium text-gray-700 uppercase w-48">Hoạt Chất</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-700 uppercase w-24">Giá Tiền</th>

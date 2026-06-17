@@ -102,15 +102,28 @@ const ExpensesPage = () => {
   };
 
   // Get gardens for selected user in selected season
-  const getGardensForUserInSeason = () => {
-    if (selectedUser && selectedSeason) {
-      return gardens.filter((g) => {
-        const isUserGarden = g.user_id?._id === selectedUser || g.user_id === selectedUser;
-        const isInSeason = g.season_id?._id === selectedSeason._id || g.season_id === selectedSeason._id;
-        return isUserGarden && isInSeason;
-      });
-    }
-    return [];
+    const getGardensForUserInSeason = () => {
+    if (!selectedUser || !selectedSeason) return [];
+
+    // 1. Lấy tất cả expense của season này
+    const seasonExpenses = expenses.filter(
+      (e) =>
+        e.season_id?._id === selectedSeason._id ||
+        e.season_id === selectedSeason._id
+    );
+
+    // 2. Lấy tất cả garden_id từ expense
+    const gardenIds = seasonExpenses
+      .map((e) => e.garden_id?._id || e.garden_id)
+      .filter(Boolean);
+
+    // 3. Lọc garden theo user + nằm trong expense
+    return gardens.filter((g) => {
+      const isUserGarden =
+        g.user_id?._id === selectedUser || g.user_id === selectedUser;
+
+      return isUserGarden && gardenIds.includes(g._id);
+    });
   };
 
   // Get expenses for selected garden in selected season
@@ -387,7 +400,7 @@ const ExpensesPage = () => {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Tên vườn</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Địa điểm</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Địa chỉ</th>
                 <th className="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-600">Số chi phí</th>
                 <th className="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-600">Tổng chi phí</th>
               </tr>
@@ -411,7 +424,7 @@ const ExpensesPage = () => {
                       <td className="px-6 py-4">
                         <div className="font-semibold text-gray-900">{garden.ten_vuon}</div>
                       </td>
-                      <td className="px-6 py-4 text-gray-600">{garden.dia_diem || 'Chưa có địa điểm'}</td>
+                      <td className="px-6 py-4 text-gray-600">{garden.dia_chi || 'Chưa có địa chỉ'}</td>
                       <td className="px-6 py-4 text-center text-gray-900">{gardenExpenses.length}</td>
                       <td className="px-6 py-4 text-center font-semibold text-purple-600">{total.toLocaleString('vi-VN')} đ</td>
                     </tr>

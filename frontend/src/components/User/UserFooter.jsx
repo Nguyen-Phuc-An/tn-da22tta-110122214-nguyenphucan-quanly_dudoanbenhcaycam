@@ -27,7 +27,7 @@ const UserFooter = () => {
                 <img src={logoDHTV} alt="Logo trường" className="h-full w-full object-contain" />
               </div>
               <div>
-                <h3 className="text-2xl font-bold leading-tight">MAP-Citrus</h3>
+                <h3 className="text-2xl font-bold leading-tight">MAP Citrus</h3>
               </div>
             </div>
             <p className="text-white/85 leading-relaxed max-w-sm">
@@ -87,7 +87,7 @@ const UserFooter = () => {
               </li>
               <li className="flex items-start gap-3">
                 <FaEnvelope className="mt-1 text-white/70 shrink-0" />
-                <a href="mailto:contact@citruscare.vn" className="hover:text-white transition break-all">
+                <a href="mailto:anphuc1203@gmail.com" className="hover:text-white transition break-all">
                   anphuc1203@gmail.com
                 </a>
               </li>
@@ -100,7 +100,7 @@ const UserFooter = () => {
         </div>
 
         <div className="mt-6 pt-3 border-t border-white/15 flex flex-col md:flex-row items-center justify-center text-center gap-3 text-sm text-white/75">
-          <p>© 2026 CitrusCare. Giảng viên hướng dẫn: Phạm Minh Đương.</p>
+          <p>© 2026 MAP Citrus. Giảng viên hướng dẫn: Phạm Minh Đương.</p>
         </div>
       </div>
     </footer>

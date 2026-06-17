@@ -19,6 +19,7 @@ const LogsPage = () => {
 
   const selectedGarden = watch('garden_id');
   const selectedSeason = watch('season_id');
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     fetchLogs();
@@ -66,7 +67,7 @@ const LogsPage = () => {
 
   const fetchTasks = async () => {
     try {
-      const res = await apiClient.get(`/tasks/garden/${selectedGarden}`);
+      const res = await apiClient.get(`/tasks`);
       setTasks(res.data.data || []);
     } catch (err) {
       console.error('Error fetching tasks:', err);
@@ -99,13 +100,18 @@ const LogsPage = () => {
 
   const handleEdit = (log) => {
     setEditingId(log._id);
-    // Extract IDs from populated objects for form reset
+
     const logData = {
-      ...log,
       garden_id: log.garden_id?._id || log.garden_id,
       season_id: log.season_id?._id || log.season_id,
       task_id: log.task_id?._id || log.task_id,
+      ngay_lam: log.ngay_lam
+        ? new Date(log.ngay_lam).toISOString().split('T')[0]
+        : '',
+      nguoi_thuc_hien: log.nguoi_thuc_hien || '',
+      ghi_chu: log.ghi_chu || '',
     };
+
     reset(logData);
     setShowForm(true);
   };
@@ -130,13 +136,27 @@ const LogsPage = () => {
       log.nguoi_thuc_hien?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const filteredSeasons = selectedGarden
-    ? seasons.filter((s) => s.garden_id?._id === selectedGarden || s.garden_id === selectedGarden)
-    : [];
+  const ITEMS_PER_PAGE = 10;
+  const totalPages = Math.max(1, Math.ceil(filteredLogs.length / ITEMS_PER_PAGE));
+  const currentPageSafe = Math.min(currentPage, totalPages);
+  const startIndex = (currentPageSafe - 1) * ITEMS_PER_PAGE;
+  const paginatedLogs = filteredLogs.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+  const filteredSeasons = editingId
+    ? seasons
+    : selectedGarden
+      ? seasons.filter((s) =>
+          s.garden_id?._id === selectedGarden || s.garden_id === selectedGarden
+        )
+      : [];
 
   const filteredTasks = selectedGarden
     ? tasks
     : [];
+  
+    useEffect(() => {
+      setCurrentPage(1);
+    }, [searchTerm]);
 
   return (
     <AdminLayout>
@@ -301,67 +321,83 @@ const LogsPage = () => {
           ) : filteredLogs.length === 0 ? (
             <div className="p-8 text-center text-gray-600">Không tìm thấy nhật ký</div>
           ) : (
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">
-                    Vườn
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">
-                    Mùa Vụ
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">
-                    Công Việc
-                  </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase">
-                    Ngày Làm
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">
-                    Người Thực Hiện
-                  </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase">
-                    Thao Tác
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {filteredLogs.map((log) => (
-                  <tr key={log._id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-gray-900">{log.garden_id?.ten_vuon}</span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-gray-900">{log.season_id?.ten_mua_vu}</span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-gray-900 font-medium">{log.task_id?.ten_cong_viec}</span>
-                    </td>
-                    <td className="px-6 py-4 text-center whitespace-nowrap">
-                      <span className="text-gray-600 text-sm">
-                        {new Date(log.ngay_lam).toLocaleDateString('vi-VN')}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-gray-900">{log.nguoi_thuc_hien || '—'}</span>
-                    </td>
-                    <td className="px-6 py-4 text-center whitespace-nowrap space-x-2">
-                      <button
-                        onClick={() => handleEdit(log)}
-                        className="px-3 py-1 bg-green-50 text-green-600 rounded hover:bg-green-100 transition text-sm"
-                      >
-                        <FaEdit className="inline mr-1" /> Sửa
-                      </button>
-                      <button
-                        onClick={() => setShowDeleteConfirm(log._id)}
-                        className="px-3 py-1 bg-red-50 text-red-600 rounded hover:bg-red-100 transition text-sm"
-                      >
-                        <FaTrash className="inline mr-1" /> Xóa
-                      </button>
-                    </td>
+            <>
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Vườn</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Mùa Vụ</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Công Việc</th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase">Ngày Làm</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Người Thực Hiện</th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase">Thao Tác</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+
+                <tbody className="divide-y">
+                  {paginatedLogs.map((log) => (
+                    <tr key={log._id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {log.garden_id?.ten_vuon}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {log.season_id?.ten_mua_vu}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap font-medium">
+                        {log.task_id?.ten_cong_viec}
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        {new Date(log.ngay_lam).toLocaleDateString('vi-VN')}
+                      </td>
+                      <td className="px-6 py-4">
+                        {log.nguoi_thuc_hien || '—'}
+                      </td>
+                      <td className="px-6 py-4 text-center space-x-2">
+                        <button
+                          onClick={() => handleEdit(log)}
+                          className="px-3 py-1 bg-green-50 text-green-600 rounded hover:bg-green-100 text-sm"
+                        >
+                          <FaEdit className="inline mr-1" /> Sửa
+                        </button>
+                        <button
+                          onClick={() => setShowDeleteConfirm(log._id)}
+                          className="px-3 py-1 bg-red-50 text-red-600 rounded hover:bg-red-100 text-sm"
+                        >
+                          <FaTrash className="inline mr-1" /> Xóa
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* Pagination */}
+              {filteredLogs.length > 0 && totalPages > 1 && (
+                <div className="flex items-center justify-between border-t bg-gray-50 px-6 py-4">
+                  <div className="text-sm text-gray-600">
+                    Trang <span className="font-semibold">{currentPageSafe}</span> /{' '}
+                    <span className="font-semibold">{totalPages}</span>
+                    <span className="ml-2">({filteredLogs.length} nhật ký)</span>
+                  </div>
+
+                  <div className="flex gap-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                      <button
+                        key={page}
+                        onClick={() => setCurrentPage(page)}
+                        className={`min-w-9 rounded px-3 py-1 text-sm font-medium ${
+                          currentPageSafe === page
+                            ? 'bg-green-600 text-white'
+                            : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-100'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
 

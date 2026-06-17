@@ -229,7 +229,7 @@ const StatisticsPage = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600 text-sm">Tổng chi phí</p>
-                <p className="text-2xl font-bold text-gray-900 mt-2">{(stats.totalExpenses / 1000000).toFixed(1)}M ₫</p>
+                <p className="text-2xl font-bold text-gray-900 mt-2">{(stats.totalExpenses / 1000000).toFixed(2)}M ₫</p>
               </div>
               <div className="text-3xl text-slate-900/20"><FaDollarSign /></div>
             </div>
@@ -282,7 +282,7 @@ const StatisticsPage = () => {
                 </h3>
                 <p className="text-sm text-gray-500">Nhìn nhanh mức độ hoạt động gần đây</p>
               </div>
-              <div className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">10 ngày gần nhất</div>
+              <div className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">10 ngày có dữ liệu dự đoán gần nhất</div>
             </div>
             {insights.byDay.length === 0 ? (
               <div className="text-center text-gray-500 py-8">Chưa có dữ liệu dự đoán</div>

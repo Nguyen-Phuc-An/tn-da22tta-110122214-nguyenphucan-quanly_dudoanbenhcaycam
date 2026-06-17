@@ -25,15 +25,15 @@
   },
   "class_vi": {
     "black_spot": "Bệnh đốm đen",
-    "canker": "Bệnh loét",
-    "citrus_leaf_curl": "Bệnh xoăn lá",
+    "canker": "Bệnh loét hại cây có múi",
+    "citrus_leaf_curl": "citrus_leaf_curl",
     "deficiency": "Thiếu dinh dưỡng",
     "greasy_spot": "Bệnh đốm dầu",
     "greening": "Bệnh vàng lá gân xanh",
-    "healthy": "Lá khỏe mạnh",
-    "leaf_eating_worm": "Sâu ăn lá",
+    "healthy": "Khỏe mạnh",
+    "leaf_eating_worm": "leaf_eating_worm",
     "leafminer": "Sâu vẽ bùa",
-    "multiple": "Nhiều bệnh"
+    "multiple": "Bệnh hỗn hợp"
   },
   "num_classes": 10
 }

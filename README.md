@@ -18,16 +18,6 @@ Mục tiêu của dự án là số hóa quá trình quản lý vườn cây có
 
 ## 3. Kiến trúc hệ thống
 
-```mermaid
-flowchart LR
-    A[Frontend React] --> B[Backend Node.js / Express]
-    B --> C[(MongoDB)]
-    B --> D[ML Service Flask]
-    D --> E[Model MobileNetV2]
-    D --> B
-    B --> A
-```
-
 ### Luồng xử lý chính
 
 1. Người dùng đăng nhập trên frontend.

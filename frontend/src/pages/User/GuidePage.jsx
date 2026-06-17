@@ -36,7 +36,7 @@ const GuidePage = () => {
               <FaBook /> Hướng dẫn sử dụng
             </h1>
             <p className="max-w-3xl text-white/85 leading-relaxed">
-              CitrusCare được thiết kế để hỗ trợ người dùng quản lý vườn cây, ghi nhận hoạt động canh tác,
+              MAP Citrus được thiết kế để hỗ trợ người dùng quản lý vườn cây, ghi nhận hoạt động canh tác,
               theo dõi bệnh hại và dự đoán bằng AI theo cách trực quan, nhanh gọn.
             </p>
           </div>

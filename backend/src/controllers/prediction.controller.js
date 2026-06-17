@@ -63,21 +63,34 @@ ${i + 1}. ${d.ten_benh} (${Math.round(p.confidence * 100)}%)
     }).join('\n');
 
     const prompt = `
-Bạn là chuyên gia nông nghiệp.
+    Bạn là chuyên gia nông nghiệp và hệ thống tư vấn AI.
 
-Cây có thể mắc các bệnh sau:
+    Yêu cầu về phong cách:
+    - KHÔNG sử dụng lời chào (ví dụ: "Chào bạn")
+    - Viết theo văn phong học thuật, rõ ràng, súc tích
+    - Không dùng cảm xúc hoặc văn nói
+    - Trình bày thành đoạn văn logic, tối đa 5 câu
 
-${diseasesList}
+    Thông tin bệnh:
 
-Yêu cầu:
+    ${diseasesList}
 
-* Xác định bệnh chính
-* Nếu nhiều bệnh → đưa giải pháp tổng hợp
-* Nếu là cây khỏe → chúc mừng
-* Viết ngắn gọn, dễ hiểu (3-5 câu)
-* Không được tự bịa tên phân bón hoặc thuốc
-* Chỉ được nhắc đến phân bón/thuốc nếu chúng xuất hiện trong mục "Phân bón được phép đề xuất" và "Thuốc được phép đề xuất"
-* Nếu không có danh sách phù hợp thì chỉ nói chưa có gợi ý cụ thể từ cơ sở dữ liệu
+    Yêu cầu nội dung:
+    - Xác định bệnh chính
+    - Nếu nhiều bệnh → đưa giải pháp tổng hợp
+    - Nêu nguyên nhân chính
+    - Đưa hướng xử lý cụ thể
+    - Chỉ sử dụng phân bón/thuốc trong danh sách được phép
+
+    Ràng buộc:
+    - KHÔNG bịa thêm tên thuốc/phân bón
+    - Nếu không có dữ liệu → nói rõ "chưa có gợi ý từ cơ sở dữ liệu"
+
+    Định dạng output:
+    - Không xuống dòng lung tung
+    - Không markdown (**)
+    - Không bullet
+    - Viết thành 1 đoạn hoàn chỉnh
     `;
 
     const result = await model.generateContent(prompt);
@@ -165,6 +178,8 @@ const uploadPrediction = async (req, res) => {
       });
     }
 
+    const CONFIDENCE_THRESHOLD = 0.80; // 80% trở lên mới lưu vào database
+
     // NOTE: garden_id removed - prediction is tied to user only
 
     console.log(`\n📤 Gửi ảnh sang ML API: ${ML_API_URL}`);
@@ -214,6 +229,18 @@ const uploadPrediction = async (req, res) => {
 
     // ✓ 3. Lấy kết quả dự đoán từ Flask
     const mlData = mlResponse.data.data;
+    if (!mlData.top_3 || !Array.isArray(mlData.top_3)) {
+      console.error('❌ ML không trả về top_3');
+
+      fs.unlink(req.file.path, (err) => {
+        if (err) console.error('Lỗi xóa file:', err);
+      });
+
+      return res.status(500).json({
+        success: false,
+        message: 'Dữ liệu từ AI không hợp lệ',
+      });
+    }
     console.log(`✓ ML API trả kết quả: ${mlData.disease_en} (confidence: ${mlData.confidence})`);
     const gradCamPath = mlData.grad_cam?.overlay_path || '';
 
@@ -226,6 +253,19 @@ const uploadPrediction = async (req, res) => {
     predictions = predictions
       .filter(p => p.confidence > 0)
       .sort((a, b) => b.confidence - a.confidence);
+    
+    if (!predictions || predictions.length === 0) {
+      console.error('❌ Không có kết quả dự đoán hợp lệ');
+
+      fs.unlink(req.file.path, (err) => {
+        if (err) console.error('Lỗi xóa file:', err);
+      });
+
+      return res.status(500).json({
+        success: false,
+        message: 'Không thể phân tích ảnh. Vui lòng thử ảnh rõ hơn.',
+      });
+    }
 
     console.log(`✓ Top 3 predictions:`, predictions.length);
 
@@ -258,7 +298,43 @@ const uploadPrediction = async (req, res) => {
 
     // ✓ 3.4 Xác định bệnh chính (prediction đầu tiên)
     const mainPrediction = predictions[0];
+    if (!mainPrediction || !mainPrediction.label) {
+      console.error('❌ Không xác định được prediction chính');
+
+      return res.status(500).json({
+        success: false,
+        message: 'Không xác định được kết quả dự đoán',
+      });
+    }
     const mainDisease = diseaseMap[mainPrediction.label];
+
+    // Nếu confidence thấp → reject
+    if (mainPrediction.confidence < CONFIDENCE_THRESHOLD) {
+      console.log('⚠️ Confidence thấp, không lưu database nhưng trả về kết quả tạm thời');
+
+      // ❗ Xóa ảnh vì không lưu
+      fs.unlink(req.file.path, (err) => {
+        if (err) console.error('Lỗi xóa file:', err);
+      });
+
+      // Trả về kết quả tạm thời để UI vẫn hiển thị tên bệnh và top-3,
+      // nhưng không lưu vào database. Client có thể hiển thị cảnh báo "Độ tin cậy thấp".
+      return res.status(200).json({
+        success: true,
+        message: 'Ảnh không đủ điều kiện để lưu nhưng trả về kết quả tạm thời',
+        data: {
+          confidence: mainPrediction.confidence,
+          isLowConfidence: true,
+          main_disease_en: mainPrediction.label,
+          main_disease_vi: (diseaseMap[mainPrediction.label]?.ten_benh) || mainPrediction.label,
+          top_3: predictions.map(p => ({
+            ten_benh: (diseaseMap[p.label]?.ten_benh) || p.label,
+            ten_benh_en: p.label,
+            confidence: p.confidence
+          })),
+        },
+      });
+    }
 
     if (!mainDisease) {
       console.error(`❌ Không tìm thấy bệnh chính: ${mainPrediction.label}`);

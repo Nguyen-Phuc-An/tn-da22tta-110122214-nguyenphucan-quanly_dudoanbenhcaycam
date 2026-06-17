@@ -16,10 +16,9 @@ Tập dữ liệu train được gộp từ 3 nguồn chính:
 
 Tổng số ảnh mẫu: **5837**.
 
-### 9 loại bệnh / class
+### 8 loại bệnh / class
 
 - `canker` - Bệnh loét
-- `melanose` - Bệnh nấm melanose
 - `greening` - Vàng lá gân xanh
 - `black_spot` - Đốm đen
 - `greasy_spot` - Đốm dầu

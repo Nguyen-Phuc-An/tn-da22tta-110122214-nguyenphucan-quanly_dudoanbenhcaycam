@@ -318,8 +318,8 @@ const createNotification = async (req, res) => {
             for (const plot of plots) {
               const g = gardenMap.get(String(plot.garden_id));
               if (!g) continue;
+              // Không bỏ qua vườn chưa có mùa vụ - tạo thông báo cho tất cả vườn/mẫu đất
               const seasonId = g.season_id || null;
-              if (!seasonId) continue; // bỏ qua vườn chưa có mùa vụ
 
               logsToInsert.push({
                 garden_id: g._id,

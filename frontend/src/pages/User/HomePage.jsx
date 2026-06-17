@@ -57,6 +57,8 @@ const HomePage = () => {
   const [selectedAdviceLoading, setSelectedAdviceLoading] = useState(false);
   const [selectedTopDisease, setSelectedTopDisease] = useState(null);
 
+  const CONFIDENCE_THRESHOLD = 80; // 80% trở lên mới hiển thị kết quả chính xác
+
   useEffect(() => {
     fetchStats();
     fetchNotifications();
@@ -325,7 +327,7 @@ const HomePage = () => {
                 <FaDollarSign className="text-orange-600" /> Chi phí
               </h3>
               <p className="text-2xl font-bold text-orange-600 mb-2">
-                {(stats.expenses / 1000000).toFixed(1)}M ₫
+                {(stats.expenses / 1000000).toFixed(2)}M ₫
               </p>
               <p className="text-sm text-gray-700">
                 Tổng chi phí của bạn. Kiểm tra danh sách chi phí để tối ưu hóa.
@@ -353,7 +355,7 @@ const HomePage = () => {
             <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3 mb-6">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-green-600 mb-2">Dự đoán AI</p>
-                <h2 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+                <h2 className="text-3xl font-bold text-green-600 flex items-center gap-3">
                   <FaMicroscope className="text-green-600" /> Dự đoán bệnh
                 </h2>
                 <p className="text-sm text-gray-500 mt-2">
@@ -431,27 +433,59 @@ const HomePage = () => {
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 {predictionResult ? (
                   <div className="space-y-6">
-                    <h3 className="text-2xl font-bold text-gray-900">Kết quả dự đoán</h3>
+                    {getConfidencePercent(predictionResult.confidence) < CONFIDENCE_THRESHOLD ? (
+                      <div className="rounded-xl border border-red-200 bg-gradient-to-br from-red-50 to-white p-5 shadow-sm">
+                        <div className="flex items-start gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100 text-red-600">
+                            <FaExclamationTriangle />
+                          </div>
 
-                    <div className="bg-green-50 rounded-xl p-4 border-2 border-green-200">
-                      <p className="text-gray-600 text-sm flex items-center gap-2">
-                        <FaTrophy className="text-yellow-500" /> Bệnh chính xác suất cao
-                      </p>
-                      <p className="text-2xl font-bold text-gray-900 mt-1">{predictionResult.main_disease}</p>
-                      <div className="mt-3 flex items-center gap-2">
-                        <div className="flex-1 bg-gray-300 rounded-full h-2 overflow-hidden">
-                          <div
-                            className="bg-green-600 h-2 rounded-full transition-all"
-                            style={{ width: `${Math.round(predictionResult.confidence * 100)}%` }}
-                          />
+                          <div className="space-y-2">
+                            <p className="font-semibold text-red-700 text-base">
+                              Kết quả chưa đủ độ tin cậy
+                            </p>
+
+                            <p className="text-sm text-gray-700 leading-relaxed text-justify">
+                              Hệ thống chưa thể xác định chính xác bệnh từ ảnh này. Nguyên nhân có thể đến từ chất lượng ảnh 
+                              (mờ, thiếu sáng, góc chụp chưa phù hợp) hoặc trường hợp bệnh chưa nằm trong tập dữ liệu huấn luyện.
+                            </p>
+
+                            <ul className="text-sm text-gray-700 list-disc pl-5 space-y-1 text-justify">
+                              <li>Ảnh chưa rõ vùng lá bị bệnh</li>
+                              <li>Điều kiện ánh sáng không ổn định</li>
+                              <li>Bệnh hiếm hoặc chưa có trong hệ thống</li>
+                            </ul>
+
+                            <p className="text-sm text-gray-700 italic text-justify">
+                              👉 Khuyến nghị: thử lại với ảnh rõ nét hơn hoặc tham khảo chuyên gia nông nghiệp.
+                            </p>
+                          </div>
                         </div>
-                        <p className="text-lg font-bold text-green-600 min-w-fit">
-                          {Math.round(predictionResult.confidence * 100)}%
-                        </p>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="bg-green-50 rounded-xl p-4 border-2 border-green-200">
+                        <p className="text-gray-600 text-sm flex items-center gap-2">
+                          <FaTrophy className="text-yellow-500" /> Bệnh chính xác suất cao
+                        </p>
+                        <p className="text-2xl font-bold text-gray-900 mt-1">
+                          {predictionResult.main_disease}
+                        </p>
 
-                    {predictionResult.top_3 && (
+                        <div className="mt-3 flex items-center gap-2">
+                          <div className="flex-1 bg-gray-300 rounded-full h-2 overflow-hidden">
+                            <div
+                              className="bg-green-600 h-2 rounded-full transition-all"
+                              style={{ width: `${getConfidencePercent(predictionResult.confidence)}%` }}
+                            />
+                          </div>
+                          <p className="text-lg font-bold text-green-600 min-w-fit">
+                            {getConfidencePercent(predictionResult.confidence)}%
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {getConfidencePercent(predictionResult.confidence) >= CONFIDENCE_THRESHOLD && predictionResult.top_3 && (
                       <div>
                         <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
                           <FaList className="text-blue-600" /> Top 3 bệnh khả năng
@@ -486,7 +520,8 @@ const HomePage = () => {
                       </div>
                     )}
 
-                    {(selectedAdviceLoading || selectedAdvice || selectedTopDisease) && (
+                    {getConfidencePercent(predictionResult.confidence) >= CONFIDENCE_THRESHOLD &&
+                    (selectedAdviceLoading || selectedAdvice || selectedTopDisease) && (
                       <div className={`rounded-xl p-5 border-l-4 ${selectedAdviceLoading ? 'bg-purple-100 border-purple-500' : 'bg-purple-50 border-purple-500'}`}>
                         <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
                           <FaBrain className="text-purple-600" /> Tư vấn AI từ Gemini

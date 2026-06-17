@@ -12,7 +12,7 @@ const predictionSchema = new mongoose.Schema({
   },
   ket_qua_benh: {
     type: String,
-    required: [true, 'Vui lòng nhập kết quả dự đoán'],
+    default: null,
   },
   do_tin_cay: {
     type: Number,

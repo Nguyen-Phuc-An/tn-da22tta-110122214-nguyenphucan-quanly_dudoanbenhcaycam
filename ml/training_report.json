@@ -1,26 +1,26 @@
 {
   "trainingResults": {
-    "train_accuracy": 0.9368603825569153,
-    "val_accuracy": 0.9598338007926941,
-    "train_loss": 0.24720309674739838,
-    "val_loss": 0.12679488956928253,
-    "best_val_accuracy": 0.9598338007926941,
-    "best_val_loss": 0.12679488956928253
+    "train_accuracy": 0.8862330317497253,
+    "val_accuracy": 0.9134438037872314,
+    "train_loss": 0.3065621256828308,
+    "val_loss": 0.2470790445804596,
+    "best_val_accuracy": 0.9134438037872314,
+    "best_val_loss": 0.2470790445804596
   },
   "evaluation": {
-    "precision_macro": 0.9016349297155933,
-    "recall_macro": 0.9319078655635534,
-    "f1_macro": 0.9155017187261292,
-    "precision_weighted": 0.9638053435558062,
-    "recall_weighted": 0.9598337950138505,
-    "f1_weighted": 0.961298680216412,
+    "precision_macro": 0.8537648681580695,
+    "recall_macro": 0.7830873499971207,
+    "f1_macro": 0.7927236418567881,
+    "precision_weighted": 0.9180556907554835,
+    "recall_weighted": 0.9134438305709024,
+    "f1_weighted": 0.9122944261731958,
     "test": {
-      "precision_macro": 0.8915933466052746,
-      "recall_macro": 0.8982606763290463,
-      "f1_macro": 0.893962236876065,
-      "precision_weighted": 0.9564876287038291,
-      "recall_weighted": 0.9542936288088643,
-      "f1_weighted": 0.955042049004318
+      "precision_macro": 0.8845884356463456,
+      "recall_macro": 0.7982849249336039,
+      "f1_macro": 0.82910381681144,
+      "precision_weighted": 0.9076611576929107,
+      "recall_weighted": 0.9,
+      "f1_weighted": 0.9003920080896634
     }
   }
 }
