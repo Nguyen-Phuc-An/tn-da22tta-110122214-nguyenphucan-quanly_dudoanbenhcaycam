@@ -260,7 +260,7 @@ const LogsPage = () => {
     <UserLayout>
       <div>
         <div className="mb-6 flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-gray-900">Nhật Ký Canh Tác</h1>
+          <h1 className="text-3xl font-bold text-green-600">Nhật Ký Canh Tác</h1>
           <button
             onClick={() => {
               setEditingId(null);
@@ -423,7 +423,7 @@ const LogsPage = () => {
             <div className="p-8 text-center text-gray-600">
               {logs.length === 0 ? (
                 <>
-                  <p className="mb-4">📝 Chưa có nhật ký nào</p>
+                  <p className="mb-4">Chưa có nhật ký nào</p>
                   <button
                     onClick={() => {
                       setEditingId(null);

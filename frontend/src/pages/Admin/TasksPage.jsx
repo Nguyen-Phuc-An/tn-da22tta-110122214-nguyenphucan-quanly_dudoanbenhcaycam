@@ -96,7 +96,7 @@ const TasksPage = () => {
       <div>
         {/* Header */}
         <div className="mb-6 flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-gray-900">Quản Lý Công Việc</h1>
+          <h1 className="text-3xl font-bold text-green-600">Quản Lý Công Việc</h1>
           <button
             onClick={() => {
               setEditingId(null);
@@ -112,8 +112,8 @@ const TasksPage = () => {
         {/* Form */}
         {showForm && (
           <div className="bg-white rounded-lg shadow p-6 mb-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">
-              {editingId ? <><FaEdit /> Sửa Công Việc</> : <><FaPlus /> Tạo Công Việc Mới</>}
+            <h2 className="text-xl font-bold text-green-600 mb-4">
+              {editingId ? <>Sửa Công Việc</> : <>Tạo Công Việc Mới</>}
             </h2>
 
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">

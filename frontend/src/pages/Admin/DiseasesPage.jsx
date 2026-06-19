@@ -237,7 +237,7 @@ const DiseasesPage = () => {
       <div>
         {/* Header */}
         <div className="mb-6 flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-gray-900">Quản Lý Bệnh</h1>
+          <h1 className="text-3xl font-bold text-green-600">Quản Lý Bệnh</h1>
           <button
             onClick={handleAddNewDisease}
             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center gap-2"
@@ -249,7 +249,7 @@ const DiseasesPage = () => {
         {/* Form */}
         {showForm && (
           <div className="bg-white rounded-lg shadow p-6 mb-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">
+            <h2 className="text-xl font-bold text-green-600 mb-4">
               {editingId ? <> Sửa Bệnh</> : <> Tạo Bệnh Mới</>}
             </h2>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">

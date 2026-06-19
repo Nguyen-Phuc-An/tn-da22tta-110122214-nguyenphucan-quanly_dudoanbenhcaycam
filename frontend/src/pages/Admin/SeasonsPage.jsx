@@ -133,7 +133,7 @@ const SeasonsPage = () => {
       <div>
         {/* Header */}
         <div className="mb-6 flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-gray-900">Quản Lý Mùa Vụ</h1>
+          <h1 className="text-3xl font-bold text-green-600">Quản Lý Mùa Vụ</h1>
           <div className="flex items-center gap-3">
             <button
               onClick={handleSyncCurrentSeasonForAllGardens}
@@ -158,8 +158,8 @@ const SeasonsPage = () => {
         {/* Form */}
         {showForm && (
           <div className="bg-white rounded-lg shadow p-6 mb-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-              {editingId ? <><FaEdit /> Sửa Mùa Vụ</> : <><FaPlus /> Tạo Mùa Vụ Mới</>}
+            <h2 className="text-xl font-bold text-green-600 mb-4 flex items-center gap-2">
+              {editingId ? <>Sửa Mùa Vụ</> : <>Tạo Mùa Vụ Mới</>}
             </h2>
 
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -343,18 +343,36 @@ const SeasonsPage = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-center whitespace-nowrap space-x-2">
-                      <button
-                        onClick={() => handleEdit(season)}
-                        className="px-3 py-1 bg-green-50 text-green-600 rounded hover:bg-green-100 transition text-sm"
-                      >
-                        <FaEdit className="inline mr-1" /> Sửa
-                      </button>
-                      <button
-                        onClick={() => setShowDeleteConfirm(season._id)}
-                        className="px-3 py-1 bg-red-50 text-red-600 rounded hover:bg-red-100 transition text-sm"
-                      >
-                        <FaTrash className="inline mr-1" /> Xóa
-                      </button>
+                      {/* Quy tắc:
+                          - 'Đã kết thúc' : không cho sửa hoặc xóa
+                          - 'Đang diễn ra' : chỉ cho sửa
+                          - 'Sắp diễn ra' : cho sửa và xóa
+                      */}
+                      {(() => {
+                        const status = season.trang_thai;
+                        const canEdit = status === 'Đang diễn ra' || status === 'Sắp diễn ra';
+                        const canDelete = status === 'Sắp diễn ra';
+
+                        return (
+                          <>
+                            <button
+                              onClick={() => canEdit && handleEdit(season)}
+                              disabled={!canEdit}
+                              className={`px-3 py-1 rounded text-sm transition ${canEdit ? 'bg-green-50 text-green-600 hover:bg-green-100' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
+                            >
+                              <FaEdit className="inline mr-1" /> Sửa
+                            </button>
+
+                            <button
+                              onClick={() => canDelete && setShowDeleteConfirm(season._id)}
+                              disabled={!canDelete}
+                              className={`px-3 py-1 rounded text-sm transition ${canDelete ? 'bg-red-50 text-red-600 hover:bg-red-100' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
+                            >
+                              <FaTrash className="inline mr-1" /> Xóa
+                            </button>
+                          </>
+                        );
+                      })()}
                     </td>
                   </tr>
                 ))}

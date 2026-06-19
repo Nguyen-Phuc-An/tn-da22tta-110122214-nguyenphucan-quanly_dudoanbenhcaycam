@@ -298,7 +298,7 @@ const MLTrainingPage = () => {
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-gray-900">Đào Tạo ML Model</h1>
+          <h1 className="text-3xl font-bold text-green-600">Đào Tạo ML Model</h1>
           <div className="flex items-center gap-3">
             <button
               onClick={handleToggleMaintenance}
@@ -373,8 +373,8 @@ const MLTrainingPage = () => {
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3 mb-5">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gray-900 mb-2">Kết quả huấn luyện</p>
-              <h2 className="text-2xl font-bold text-gray-900">Accuracy / Loss của lần train gần nhất</h2>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-green-600 mb-2">Kết quả huấn luyện</p>
+              <h2 className="text-2xl font-bold text-green-600">Accuracy / Loss của lần train gần nhất</h2>
               <p className="text-sm text-gray-500 mt-1">
                 Hiển thị giá trị cuối cùng của epoch cuối và các chỉ số quan trọng của lần huấn luyện gần nhất.
               </p>
@@ -427,7 +427,7 @@ const MLTrainingPage = () => {
                       <Icon className="text-2xl opacity-90" />
                     </div>
                     <div className="p-5">
-                      <p className="text-4xl font-bold text-gray-900">{item.value}</p>
+                      <p className="text-4xl font-bold text-green-600">{item.value}</p>
                       <p className="mt-3 text-sm text-gray-500">
                         {item.key.includes('loss')
                           ? 'Giá trị càng thấp càng tốt'
@@ -449,8 +449,8 @@ const MLTrainingPage = () => {
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3 mb-5">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gray-900 mb-2">Đánh giá mô hình</p>
-              <h2 className="text-2xl font-bold text-gray-900">Validation sau khi huấn luyện</h2>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-green-600 mb-2">Đánh giá mô hình</p>
+              <h2 className="text-2xl font-bold text-green-600">Validation sau khi huấn luyện</h2>
             </div>
             <div className="text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-full px-4 py-2 self-start md:self-auto">
               Tập validation 
@@ -513,8 +513,8 @@ const MLTrainingPage = () => {
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3 mb-5">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gray-900 mb-2">Đánh giá cuối cùng</p>
-              <h2 className="text-2xl font-bold text-gray-900">Test sau khi huấn luyện</h2>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-green-600 mb-2">Đánh giá cuối cùng</p>
+              <h2 className="text-2xl font-bold text-green-600">Test sau khi huấn luyện</h2>
             </div>
             <div className="text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-full px-4 py-2 self-start md:self-auto">
               Tập test
@@ -588,10 +588,10 @@ const MLTrainingPage = () => {
                 <div className="space-y-4">
                   {/* Disease Name */}
                   <div>
-                    <h3 className="text-2xl font-bold text-gray-900">
+                    <h3 className="text-2xl font-bold text-green-600">
                       {data.ten_benh || disease}
                     </h3>
-                    <p className="text-sm font-medium text-gray-500 mt-1">{data.upload_key || disease}</p>
+                    <p className="text-sm font-medium text-green-600 mt-1">{data.upload_key || disease}</p>
                     <p className="text-xs text-gray-500 mt-1">
                       {data.source === 'original'
                         ? 'Bệnh gốc (organized_dataset)'

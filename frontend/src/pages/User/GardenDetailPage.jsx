@@ -62,6 +62,13 @@ const GardenDetailPage = () => {
   const totalExpenses = expenses.reduce((sum, e) => sum + (e.so_tien || 0), 0);
   const totalPlotArea = plots.reduce((sum, plot) => sum + Number(plot.area || 0), 0);
 
+  // Count remaining (not completed) logs for this garden
+  const remainingCount = logs.filter(l => {
+    if (typeof l.is_completed === 'boolean') return !l.is_completed;
+    const s = (l.trang_thai || l.status || l.trangThai || '').toString().toLowerCase();
+    return s.includes('chưa');
+  }).length;
+
   const formatExpenseDate = (expense) => {
     const rawDate = expense?.ngay || expense?.ngay_tao || expense?.ngay_cap_nhat || expense?.createdAt;
     if (!rawDate) return 'N/A';
@@ -151,7 +158,7 @@ const GardenDetailPage = () => {
         {/* Header */}
         <div className="flex justify-between items-start mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
+            <h1 className="text-3xl font-bold text-green-600 flex items-center gap-2">
               <FaLeaf className="text-green-600" /> {garden.ten_vuon}
             </h1>
             <p className="text-gray-600 mt-2">📍 {garden.dia_chi || garden.dia_diem || 'N/A'}</p>
@@ -164,50 +171,28 @@ const GardenDetailPage = () => {
           </button>
         </div>
 
-        {sprayProgress && (
-          <div className="bg-white rounded-xl shadow-md p-6 mb-8">
-            <div className="flex items-start justify-between gap-4 mb-4">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">Tiến độ thực hiện công việc</h2>
-                <p className="text-sm text-gray-500 mt-1">
-                  {sprayProgress.da_xit}/{sprayProgress.tong_mau} mẫu đất đã thực hiện ({sprayProgress.phan_tram}%)
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-sm text-gray-500">Chưa thực hiện</p>
-                <p className="text-xl font-bold text-orange-600">{sprayProgress.chua_xit}</p>
-              </div>
+        {/* Tiến độ thực hiện công việc: hiển thị số công việc chưa hoàn thành dựa trên nhật ký */}
+        <div
+          onClick={() => { if (remainingCount > 0) navigate('/user/logs'); }}
+          className={`bg-white rounded-xl shadow-md p-6 mb-8 ${remainingCount > 0 ? 'cursor-pointer' : ''}`}
+        >
+          <div className="flex items-start justify-between gap-4 mb-4">
+            <div>
+              <h2 className="text-xl font-bold text-green-600">Tiến độ thực hiện công việc</h2>
+              <p className="text-sm text-gray-500 mt-1">Số công việc chưa hoàn thành từ nhật ký</p>
             </div>
-            <div className="h-3 w-full rounded-full bg-gray-200 overflow-hidden">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-green-500 to-emerald-500 transition-all"
-                style={{ width: `${sprayProgress.phan_tram}%` }}
-              />
-            </div>
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="rounded-lg bg-green-50 border border-green-200 p-4">
-                <p className="text-sm font-semibold text-green-700 mb-2">Đã thực hiện</p>
-                <div className="flex flex-wrap gap-2">
-                  {(sprayProgress.da_xit_plots || []).map((plot) => (
-                    <span key={plot._id} className="inline-flex items-center rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
-                      {plot.name}
-                    </span>
-                  ))}
-                </div>
-              </div>
-              <div className="rounded-lg bg-orange-50 border border-orange-200 p-4">
-                <p className="text-sm font-semibold text-orange-700 mb-2">Chưa thực hiện</p>
-                <div className="flex flex-wrap gap-2">
-                  {(sprayProgress.chua_xit_plots || []).map((plot) => (
-                    <span key={plot._id} className="inline-flex items-center rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-700">
-                      {plot.name}
-                    </span>
-                  ))}
-                </div>
-              </div>
+            <div className="text-right">
+              {remainingCount > 0 ? (
+                <>
+                  <p className="text-sm text-gray-500">Chưa thực hiện</p>
+                  <p className="text-xl font-bold text-orange-600">{remainingCount}</p>
+                </>
+              ) : (
+                <p className="text-xl font-bold text-green-600">Đã làm hết rồi</p>
+              )}
             </div>
           </div>
-        )}
+        </div>
 
         {/* Garden Info */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
@@ -215,7 +200,7 @@ const GardenDetailPage = () => {
             <p className="text-gray-600 text-sm flex items-center gap-2">
               Nhật ký
             </p>
-            <p className="text-2xl font-bold text-gray-900 mt-2">{logs.length}</p>
+            <p className="text-2xl font-bold text-green-600 mt-2">{logs.length}</p>
           </div>
 
           <div className="bg-white rounded-xl shadow-md p-6">
@@ -223,13 +208,13 @@ const GardenDetailPage = () => {
               Chi phí
             </p>
             <p className="text-2xl font-bold text-orange-600 mt-2">
-              {(totalExpenses / 1000000).toFixed(1)}M ₫
+              {(totalExpenses / 1000000).toFixed(2)}M ₫
             </p>
           </div>
 
           <div className="bg-white rounded-xl shadow-md p-6">
             <p className="text-gray-600 text-sm">Mẫu đất</p>
-            <p className="text-2xl font-bold text-gray-900 mt-2">{plots.length}</p>
+            <p className="text-2xl font-bold text-green-600 mt-2">{plots.length}</p>
           </div>
 
           <div className="bg-white rounded-xl shadow-md p-6">
@@ -244,7 +229,7 @@ const GardenDetailPage = () => {
         <div className="bg-white rounded-xl shadow-md p-6 mb-8">
           <div className="flex justify-between items-start gap-4 mb-4">
             <div>
-              <h2 className="text-xl font-bold text-gray-900">Mẫu đất</h2>
+              <h2 className="text-xl font-bold text-green-600">Mẫu đất</h2>
               <p className="text-sm text-gray-500 mt-1">
                 Tổng diện tích đã dùng: {totalPlotArea.toFixed(1)} / {Number(garden.dien_tich || 0).toFixed(1)}
               </p>
@@ -406,7 +391,7 @@ const GardenDetailPage = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Recent Logs */}
           <div className="bg-white rounded-xl shadow-md p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Nhật ký gần đây</h2>
+            <h2 className="text-xl font-bold text-green-600 mb-4">Nhật ký gần đây</h2>
             <div className="max-h-56 overflow-y-auto pr-1 space-y-3">
               {logs.length === 0 ? (
                 <p className="text-gray-500 text-sm">Chưa có nhật ký nào</p>
@@ -420,7 +405,7 @@ const GardenDetailPage = () => {
                         </p>
                         {log.task_id && (
                           <p className="font-semibold text-gray-900 text-sm">
-                            ✅ {log.task_id?.ten_cong_viec}
+                            {log.task_id?.ten_cong_viec}
                           </p>
                         )}
                         <p className="text-gray-600 text-sm">{log.ghi_chu}</p>
@@ -434,7 +419,7 @@ const GardenDetailPage = () => {
 
           {/* Recent Expenses */}
           <div className="bg-white rounded-xl shadow-md p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Chi phí gần đây</h2>
+            <h2 className="text-xl font-bold text-green-600 mb-4">Chi phí gần đây</h2>
             <div className="space-y-3">
               {expenses.length === 0 ? (
                 <p className="text-gray-500 text-sm">Chưa có chi phí nào</p>

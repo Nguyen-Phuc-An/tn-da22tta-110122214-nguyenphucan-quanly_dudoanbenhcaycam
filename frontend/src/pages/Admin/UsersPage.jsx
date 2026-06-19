@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FaLock, FaUnlock, FaEdit, FaTrash, FaCheck, FaKey, FaUser, FaPlus, FaTimes } from 'react-icons/fa';
+import { FaLock, FaUnlock, FaEdit, FaCheck, FaKey, FaUser, FaPlus, FaTimes, FaTrash } from 'react-icons/fa';
 import AdminLayout from '../../components/Admin/AdminLayout';
 import apiClient from '../../services/apiClient';
 import toast from 'react-hot-toast';
@@ -58,20 +58,7 @@ const UsersPage = () => {
     }
   };
 
-  const handleDeleteUser = async (user) => {
-    if (!window.confirm(`Xóa người dùng "${user.ho_ten}"?`)) {
-      return;
-    }
-
-    try {
-      const res = await apiClient.delete(`/users/${user._id}`);
-      toast.success(res.data.message || 'Xóa người dùng thành công');
-      setUsers((currentUsers) => currentUsers.filter((item) => item._id !== user._id));
-    } catch (err) {
-      console.error('❌ Error deleting user:', err);
-      toast.error(err.response?.data?.message || 'Không thể xóa người dùng');
-    }
-  };
+  
 
   const openCreateForm = () => {
     setFormMode('create');
@@ -175,7 +162,7 @@ const UsersPage = () => {
       <div>
         {/* Header */}
         <div className="mb-6 flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-gray-900">Quản Lý Người Dùng</h1>
+          <h1 className="text-3xl font-bold text-green-600">Quản Lý Người Dùng</h1>
           <button
             onClick={openCreateForm}
             className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-white font-semibold hover:bg-green-700 transition"
@@ -282,12 +269,6 @@ const UsersPage = () => {
                         className="px-3 py-1 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 transition text-sm font-medium"
                       >
                         <FaEdit className="inline mr-1" /> Sửa
-                      </button>
-                      <button
-                        onClick={() => handleDeleteUser(user)}
-                        className="px-3 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100 transition text-sm font-medium"
-                      >
-                        <FaTrash className="inline mr-1" /> Xóa
                       </button>
                     </td>
                   </tr>

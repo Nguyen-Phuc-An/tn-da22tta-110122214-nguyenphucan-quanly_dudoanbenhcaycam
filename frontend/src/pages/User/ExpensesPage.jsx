@@ -347,7 +347,7 @@ const ExpensesPage = () => {
       <div>
         {/* Header */}
         <div className="mb-6 flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-gray-900">Quản Lý Chi Phí</h1>
+          <h1 className="text-3xl font-bold text-green-600">Quản Lý Chi Phí</h1>
           <button
             onClick={() => {
               setEditingId(null);

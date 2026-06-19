@@ -169,6 +169,46 @@ def combine_datasets():
     return TEMP_COMBINED_DIR, image_count
 
 
+def sync_uploads_to_organized(organized_dir, training_dir):
+    """Copy/merge images from training uploads into organized_dataset to keep it in sync."""
+    try:
+        print(f"[SYNC] Syncing training uploads from {training_dir} -> {organized_dir}...")
+        if not os.path.exists(training_dir):
+            print(f"[SYNC] Training dir does not exist: {training_dir}")
+            return
+
+        os.makedirs(organized_dir, exist_ok=True)
+
+        for disease in os.listdir(training_dir):
+            src_disease = os.path.join(training_dir, disease)
+            if not os.path.isdir(src_disease):
+                continue
+
+            dst_disease = os.path.join(organized_dir, disease)
+            os.makedirs(dst_disease, exist_ok=True)
+
+            copied = 0
+            for fname in os.listdir(src_disease):
+                if not fname.lower().endswith(('.jpg', '.jpeg', '.png')):
+                    continue
+                src = os.path.join(src_disease, fname)
+                dst = os.path.join(dst_disease, fname)
+                # If dst exists, skip to avoid overwriting
+                if os.path.exists(dst):
+                    continue
+                try:
+                    shutil.copy2(src, dst)
+                    copied += 1
+                except Exception as e:
+                    print(f"  ✗ Failed to copy {src} -> {dst}: {e}")
+
+            print(f"  [SYNC] {disease}: copied {copied} files")
+
+        print("[SYNC] Sync completed")
+    except Exception as e:
+        print(f"[SYNC] Error during sync: {e}")
+
+
 # ===== DATA GENERATORS =====
 def create_data_generators(combined_dir):
     """Tạo ImageDataGenerator (80/20 train/val)"""
@@ -576,6 +616,9 @@ def main():
     combined_dir = None
 
     try:
+        # Sync training uploads into organized_dataset so ml/organized_dataset stays in sync with admin uploads
+        sync_uploads_to_organized(ORGANIZED_DATASET_DIR, TRAINING_IMAGES_DIR)
+
         # 1. Combine datasets
         combined_dir, image_count = combine_datasets()
 

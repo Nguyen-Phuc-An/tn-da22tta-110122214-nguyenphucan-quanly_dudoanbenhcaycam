@@ -64,7 +64,7 @@ const PredictionsPage = () => {
       <div>
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Quản Lý Dự Đoán</h1>
+          <h1 className="text-3xl font-bold text-green-600">Quản Lý Dự Đoán</h1>
           <p className="text-gray-600 mt-2">Xem và phân tích tất cả các dự đoán về bệnh</p>
         </div>
 

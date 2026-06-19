@@ -167,7 +167,7 @@ const PesticidePage = () => {
       <div>
         {/* Header */}
         <div className="mb-6 flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-gray-900">Quản Lý Thuốc</h1>
+          <h1 className="text-3xl font-bold text-green-600">Quản Lý Thuốc</h1>
           <button
             onClick={handleOpenAddModal}
             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center gap-2"
@@ -287,7 +287,7 @@ const PesticidePage = () => {
       {modal_them && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white p-8 rounded-lg shadow-xl w-96 max-w-full max-h-[90vh] overflow-y-auto">
-            <h2 className="text-2xl font-bold mb-4">➕ Thêm Thuốc Mới</h2>
+            <h2 className="text-2xl text-green-600 font-bold mb-4">Thêm Thuốc Mới</h2>
             
             <div className="space-y-3">
               <input

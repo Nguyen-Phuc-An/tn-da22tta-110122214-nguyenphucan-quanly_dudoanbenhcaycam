@@ -47,11 +47,19 @@ const DiseaseLibraryPage = () => {
   const selectedDiseaseImages = useMemo(() => {
     if (!selectedDisease) return [];
 
-    return (selectedDisease.sample_images || []).map((image, index) => ({
+    const images = (selectedDisease.sample_images || []).map((image, index) => ({
       id: `${selectedDisease._id}-${index}`,
       src: `${diseaseImageBaseUrl}${image.url}`,
       name: image.name,
     }));
+
+    // Shuffle (Fisher-Yates chuẩn)
+    for (let i = images.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [images[i], images[j]] = [images[j], images[i]];
+    }
+
+    return images;
   }, [selectedDisease]);
 
   const getSeverityClass = (level) => {

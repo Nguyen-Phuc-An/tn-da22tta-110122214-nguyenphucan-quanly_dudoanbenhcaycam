@@ -311,7 +311,7 @@ const NotificationsPage = () => {
       <div className="relative min-h-full space-y-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="flex items-center gap-3 text-3xl font-bold text-gray-900">
+            <h1 className="flex items-center gap-3 text-3xl font-bold text-green-600">
               Quản Lý Thông Báo
             </h1>
           </div>
@@ -328,8 +328,7 @@ const NotificationsPage = () => {
           <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
             <div className="mb-6 flex items-center justify-between gap-3">
               <div>
-                <h2 className="flex items-center gap-2 text-xl font-bold text-gray-900">
-                  {editingId ? <FaEdit className="text-green-600" /> : <FaPlus className="text-green-600" />}
+                  <h2 className="flex items-center gap-2 text-xl font-bold text-green-600">
                   {editingId ? 'Chỉnh sửa thông báo' : 'Tạo thông báo mới'}
                 </h2>
                 <p className="mt-1 text-sm text-gray-500">Điền các trường cần thiết, sau đó lưu để hiển thị cho user.</p>

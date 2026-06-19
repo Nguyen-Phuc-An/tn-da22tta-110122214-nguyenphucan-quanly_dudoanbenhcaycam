@@ -330,29 +330,29 @@ const AdminDashboardPage = () => {
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <StatCard icon={<FaUsers />} label="Tổng người dùng" value={stats.users} color="border-gray-900" />
-          <StatCard icon={<FaLeaf />} label="Tổng khu vườn" value={stats.gardens} color="border-gray-900" />
-          <StatCard icon={<FaVirus />} label="Tổng bệnh cây" value={stats.diseases} color="border-gray-900" />
-          <StatCard icon={<FaCamera />} label="Tổng dự đoán" value={stats.predictions} color="border-gray-900" />
+          <StatCard icon={<FaUsers />} label="Tổng người dùng" value={stats.users } color="border-gray-900 text-green-600" />
+          <StatCard icon={<FaLeaf />} label="Tổng khu vườn" value={stats.gardens} color="border-gray-900 text-green-600" />
+          <StatCard icon={<FaVirus />} label="Tổng bệnh cây" value={stats.diseases} color="border-gray-900 text-green-600" />
+          <StatCard icon={<FaCamera />} label="Tổng dự đoán" value={stats.predictions} color="border-gray-900 text-green-600" />
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm border-t-4 border-t-gray-900">
             <p className="text-sm font-medium text-slate-500">Độ tin cậy TB</p>
-            <p className="mt-2 text-3xl font-bold text-slate-900">{formatPercent(dashboard.avgConfidence)}</p>
+            <p className="mt-2 text-3xl font-bold text-green-600">{formatPercent(dashboard.avgConfidence)}</p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm border-t-4 border-t-gray-700">
             <p className="text-sm font-medium text-slate-500">Low-confidence</p>
-            <p className="mt-2 text-3xl font-bold text-slate-900">{formatNumber(dashboard.lowConfidenceCount)}</p>
+            <p className="mt-2 text-3xl font-bold text-green-600">{formatNumber(dashboard.lowConfidenceCount)}</p>
             <p className="mt-2 text-xs text-slate-500">&lt; {LOW_CONFIDENCE_THRESHOLD}%</p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm border-t-4 border-t-gray-800">
             <p className="text-sm font-medium text-slate-500">Thời gian xử lý TB</p>
-            <p className="mt-2 text-3xl font-bold text-slate-900">{Math.round(dashboard.avgProcessingTime)} ms</p>
+            <p className="mt-2 text-3xl font-bold text-green-600">{Math.round(dashboard.avgProcessingTime)} ms</p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm border-t-4 border-t-gray-900">
             <p className="text-sm font-medium text-slate-500">Tổng ảnh huấn luyện</p>
-            <p className="mt-2 text-3xl font-bold text-slate-900">{formatNumber(summary.total_images)}</p>
+            <p className="mt-2 text-3xl font-bold text-green-600">{formatNumber(summary.total_images)}</p>
           </div>
         </div>
 
@@ -360,7 +360,7 @@ const AdminDashboardPage = () => {
           <div className="xl:col-span-2 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-lg font-bold text-slate-900">Số lần dự đoán theo ngày</h2>
+                <h2 className="text-lg font-bold text-green-600">Số lần dự đoán theo ngày</h2>
                 <p className="text-sm text-slate-500">Dựa trên lịch sử dự đoán gần nhất</p>
               </div>
             </div>
@@ -379,7 +379,7 @@ const AdminDashboardPage = () => {
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="mb-4">
-              <h2 className="text-lg font-bold text-slate-900">Phân bố độ tin cậy</h2>
+              <h2 className="text-lg font-bold text-green-600">Phân bố độ tin cậy</h2>
               <p className="text-sm text-slate-500">Tỷ lệ các mức confidence</p>
             </div>
             <div className="h-80 w-full">
@@ -402,7 +402,7 @@ const AdminDashboardPage = () => {
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-bold text-slate-900">Phân bố bệnh dự đoán</h2>
+                <h2 className="text-lg font-bold text-green-600">Phân bố bệnh dự đoán</h2>
                 <p className="text-sm text-slate-500">
                   Theo tháng {formatMonthLabel(selectedDiseaseMonth)} • {formatNumber(diseaseDistributionForMonth.total)} lượt dự đoán
                 </p>
@@ -441,7 +441,7 @@ const AdminDashboardPage = () => {
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-bold text-slate-900">Dataset / Model health</h2>
+                <h2 className="text-lg font-bold text-green-600">Dataset / Model health</h2>
                 <p className="text-sm text-slate-500">Dữ liệu từ /api/ml/status</p>
               </div>
               <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">Tổng hợp retrain</div>
@@ -500,7 +500,7 @@ const AdminDashboardPage = () => {
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-bold text-slate-900">Lịch sử dự đoán gần nhất</h2>
+              <h2 className="text-lg font-bold text-green-600">Lịch sử dự đoán gần nhất</h2>
               <p className="text-sm text-slate-500">Danh sách này có thể dùng làm bảng monitoring chính</p>
             </div>
             <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">low confidence: {dashboard.lowConfidenceCount}</div>

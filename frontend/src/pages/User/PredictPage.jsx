@@ -173,7 +173,7 @@ const PredictPage = () => {
   return (
     <UserLayout>
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-8 flex items-center gap-2">
+        <h1 className="text-3xl font-bold text-green-600 mb-8 flex items-center gap-2">
           <FaFlask /> Dự đoán bệnh
         </h1>
 
@@ -185,7 +185,7 @@ const PredictPage = () => {
 
               {/* Image Upload */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label className="block text-sm font-semibold text-green-600 mb-2">
                   Tải ảnh lá cây
                 </label>
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-green-500 transition">
@@ -204,8 +204,8 @@ const PredictPage = () => {
                       </div>
                     ) : (
                       <div>
-                        <p className="text-2xl mb-2"><FaImage className="mx-auto" /></p>
-                        <p className="text-gray-700 font-semibold">Chọn hoặc kéo ảnh vào đây</p>
+                        <p className="text-2xl text-green-600 mb-2"><FaImage className="mx-auto" /></p>
+                        <p className="text-green-600 font-semibold">Chọn hoặc kéo ảnh vào đây</p>
                       </div>
                     )}
                   </label>
@@ -401,8 +401,8 @@ const PredictPage = () => {
 
         {/* Prediction History */}
         <div className="mt-12">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-            <FaList className="text-indigo-600" /> Lịch sử dự đoán
+          <h2 className="text-2xl font-bold text-green-600 mb-6 flex items-center gap-2">
+            <FaList /> Lịch sử dự đoán
           </h2>
 
           {predictions.length === 0 ? (

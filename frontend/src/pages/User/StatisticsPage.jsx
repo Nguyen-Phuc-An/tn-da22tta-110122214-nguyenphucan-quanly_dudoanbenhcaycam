@@ -309,12 +309,10 @@ const StatisticsPage = () => {
               <div className="rounded-xl bg-slate-50 p-4 border border-slate-200">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Độ tin cậy TB</p>
                 <p className="mt-1 text-2xl font-bold text-slate-900">{insights.avgConfidence.toFixed(1)}%</p>
-                <p className="text-sm text-slate-500 mt-1">Mức confidence trung bình của các dự đoán</p>
               </div>
               <div className="rounded-xl bg-slate-50 p-4 border border-slate-200">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Chi phí TB / vườn</p>
                 <p className="mt-1 text-2xl font-bold text-slate-900">{(insights.avgExpensePerGarden / 1000000).toFixed(2)}M ₫</p>
-                <p className="text-sm text-slate-500 mt-1">Dùng để so sánh giữa các vườn</p>
               </div>
               <div className="rounded-xl bg-slate-50 p-4 border border-slate-200">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Nhật ký gần nhất</p>

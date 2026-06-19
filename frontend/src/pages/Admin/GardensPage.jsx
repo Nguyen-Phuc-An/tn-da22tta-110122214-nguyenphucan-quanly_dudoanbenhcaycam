@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FaPlus, FaEdit, FaTrash, FaCheck, FaTimes, FaLeaf } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaCheck, FaTimes, FaLeaf } from 'react-icons/fa';
 import AdminLayout from '../../components/Admin/AdminLayout';
 import apiClient from '../../services/apiClient';
 import toast from 'react-hot-toast';
@@ -12,7 +12,7 @@ const GardensPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+  
   const [currentPage, setCurrentPage] = useState(1);
   const { register, handleSubmit, reset, watch } = useForm();
 
@@ -23,6 +23,7 @@ const GardensPage = () => {
     dien_tich: '',
     don_vi: 'm²',
     so_cay: '',
+    trang_thai: 'Đang hoạt động',
   };
 
   useEffect(() => {
@@ -79,6 +80,19 @@ const GardensPage = () => {
     }
   };
 
+  const toggleStatus = async (garden) => {
+    try {
+      const newStatus = garden.trang_thai === 'Đang hoạt động' ? 'Ngưng hoạt động' : 'Đang hoạt động';
+      const res = await apiClient.put(`/gardens/${garden._id}`, { trang_thai: newStatus });
+      setGardens(gardens.map((g) => (g._id === garden._id ? { ...g, trang_thai: newStatus } : g)));
+      toast.success(`Cập nhật trạng thái vườn thành '${newStatus}'`);
+      console.log('✓ Garden status toggled:', garden._id, newStatus);
+    } catch (err) {
+      console.error('❌ Error toggling garden status:', err);
+      toast.error(err.response?.data?.message || 'Không thể cập nhật trạng thái vườn');
+    }
+  };
+
   const handleEdit = (garden) => {
     setEditingId(garden._id);
     reset({
@@ -86,19 +100,6 @@ const GardensPage = () => {
       user_id: garden.user_id?._id || garden.user_id || '',
     });
     setShowForm(true);
-  };
-
-  const handleDeleteGarden = async (gardenId) => {
-    try {
-      await apiClient.delete(`/gardens/${gardenId}`);
-      console.log('✓ Garden deleted:', gardenId);
-      toast.success('Garden deleted successfully');
-      setGardens(gardens.filter((g) => g._id !== gardenId));
-      setShowDeleteConfirm(null);
-    } catch (err) {
-      console.error('❌ Error deleting garden:', err);
-      toast.error(err.response?.data?.message || 'Không thể xóa vườn');
-    }
   };
 
   const filteredGardens = gardens.filter(
@@ -126,7 +127,7 @@ const GardensPage = () => {
       <div>
         {/* Header */}
         <div className="mb-6 flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-gray-900">Quản Lý Vườn</h1>
+          <h1 className="text-3xl font-bold text-green-600">Quản Lý Vườn</h1>
           <button
             onClick={() => {
               setEditingId(null);
@@ -142,8 +143,8 @@ const GardensPage = () => {
         {/* Form */}
         {showForm && (
           <div className="bg-white rounded-lg shadow p-6 mb-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">
-              {editingId ? <><FaEdit /> Sửa Vườn</> : <><FaPlus /> Tạo Vườn Mới</>}
+            <h2 className="text-xl font-bold text-green-600 mb-4">
+              {editingId ? <>Sửa Vườn</> : <>Tạo Vườn Mới</>}
             </h2>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -228,6 +229,19 @@ const GardensPage = () => {
                 </div>                
               </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Trạng Thái</label>
+                  <select
+                    {...register('trang_thai')}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  >
+                    <option value="Đang hoạt động">Đang hoạt động</option>
+                    <option value="Ngưng hoạt động">Ngưng hoạt động</option>
+                  </select>
+                </div>
+              </div>
+
               <div className="flex gap-3">
                 <button
                   type="submit"
@@ -289,6 +303,9 @@ const GardensPage = () => {
                     Mùa Vụ
                   </th>
                   <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase">
+                    Trạng Thái
+                  </th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase">
                     Thao Tác
                   </th>
                 </tr>
@@ -321,6 +338,11 @@ const GardensPage = () => {
                         <span className="text-gray-400 text-sm italic">Không có</span>
                       )}
                     </td>
+                    <td className="px-6 py-4 text-center whitespace-nowrap">
+                      <span className={`px-2 py-1 text-sm rounded ${garden.trang_thai === 'Đang hoạt động' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'}`}>
+                        {garden.trang_thai || 'Đang hoạt động'}
+                      </span>
+                    </td>
                     <td className="px-6 py-4 text-center whitespace-nowrap space-x-2">
                       <button
                         onClick={() => handleEdit(garden)}
@@ -329,11 +351,12 @@ const GardensPage = () => {
                         <FaEdit className="inline mr-1" /> Sửa
                       </button>
                       <button
-                        onClick={() => setShowDeleteConfirm(garden._id)}
-                        className="px-3 py-1 bg-red-50 text-red-600 rounded hover:bg-red-100 transition text-sm"
+                        onClick={() => toggleStatus(garden)}
+                        className={`px-3 py-1 rounded text-sm transition ${garden.trang_thai === 'Đang hoạt động' ? 'bg-red-50 text-red-600 hover:bg-red-100' : 'bg-green-50 text-green-600 hover:bg-green-100'}`}
                       >
-                        <FaTrash className="inline mr-1" /> Xóa
+                        {garden.trang_thai === 'Đang hoạt động' ? 'Ngưng hoạt động' : 'Kích hoạt'}
                       </button>
+
                     </td>
                   </tr>
                 ))}
@@ -366,33 +389,7 @@ const GardensPage = () => {
           )}
         </div>
 
-        {/* Delete Confirmation Modal */}
-        {showDeleteConfirm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-sm">
-              <h3 className="text-lg font-bold text-gray-900 mb-4">
-                Xác Nhận Xóa
-              </h3>
-              <p className="text-gray-600 mb-6">
-                Bạn có chắc chắn muốn xóa vườn này không? Hành động này không thể hoàn tác.
-              </p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowDeleteConfirm(null)}
-                  className="flex-1 px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition"
-                >
-                Hủy
-                </button>
-                <button
-                  onClick={() => handleDeleteGarden(showDeleteConfirm)}
-                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
-                >
-                  Xóa
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        
       </div>
     </AdminLayout>
   );

@@ -37,6 +37,11 @@ const gardenSchema = new mongoose.Schema({
     default: 0,
     min: 0,
   },
+  trang_thai: {
+    type: String,
+    enum: ['Đang hoạt động', 'Ngưng hoạt động'],
+    default: 'Đang hoạt động',
+  },
   ngay_tao: {
     type: Date,
     default: Date.now,

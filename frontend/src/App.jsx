@@ -24,7 +24,6 @@ import MLTrainingPage from './pages/Admin/MLTrainingPage';
 import HomePage from './pages/User/HomePage';
 import UserGardensPage from './pages/User/GardensPage';
 import GardenDetailPage from './pages/User/GardenDetailPage';
-import GardenFormPage from './pages/User/GardenFormPage';
 import UserLogsPage from './pages/User/LogsPage';
 import PredictPage from './pages/User/PredictPage';
 import UserExpensesPage from './pages/User/ExpensesPage';
@@ -206,7 +205,7 @@ function App() {
             path="/user/gardens/:id/edit"
             element={
               <PrivateRoute>
-                <GardenFormPage />
+                <UserGardensPage />
               </PrivateRoute>
             }
           />

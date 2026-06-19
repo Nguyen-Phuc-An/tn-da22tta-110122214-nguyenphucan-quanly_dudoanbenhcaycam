@@ -162,6 +162,13 @@ const HomePage = () => {
     }
   };
 
+  const formatAIText = (text) => {
+    if (!text) return '';
+    return text
+      .replace(/\*\*/g, '')   // bỏ markdown **
+      .trim();
+  };
+
   // fetchGardens removed
 
   const handleImageChange = (e) => {
@@ -550,8 +557,8 @@ const HomePage = () => {
                             <p className="text-sm font-semibold text-gray-800">
                               Tư vấn cho: {selectedTopDisease.ten_benh}
                             </p>
-                            <p className="text-sm text-gray-800 whitespace-pre-wrap">
-                              {selectedAdvice}
+                            <p className="text-sm text-gray-800 whitespace-pre-wrap text-justify">
+                              {formatAIText(selectedAdvice)}
                             </p>
                           </div>
                         )}

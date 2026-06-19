@@ -260,7 +260,7 @@ const ExpensesPage = () => {
   const renderSeasonListView = () => (
     <div>
       <div className="mb-6">
-        <h2 className="text-2xl font-bold">Danh sách Mùa Vụ</h2>
+        <h2 className="text-2xl text-green-600 font-bold">Danh sách Mùa Vụ</h2>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {getSortedSeasons().map((season) => {
@@ -273,7 +273,7 @@ const ExpensesPage = () => {
             >
               <div className="flex justify-between items-start">
                 <div>
-                  <h3 className="font-bold text-lg">{season.ten_mua_vu}</h3>
+                  <h3 className="font-bold text-green-600 text-lg">{season.ten_mua_vu}</h3>
                 </div>
                 <p className="text-gray-600 text-sm">Năm: {season.nam}</p>
               </div>
@@ -303,11 +303,11 @@ const ExpensesPage = () => {
   const renderUserListView = () => (
     <div>
       <div className="flex items-center gap-3 mb-6">
-        <button onClick={handleBackFromUser} className="p-2 hover:bg-gray-200 rounded-lg">
+        <button onClick={handleBackFromUser} className="p-2 hover:bg-green-600 rounded-lg">
           <FaArrowLeft size={20} />
         </button>
         <div>
-          <h2 className="text-2xl font-bold">Danh sách Người dùng - {selectedSeason?.ten_mua_vu} ({selectedSeason?.nam})</h2>
+          <h2 className="text-2xl text-green-600 font-bold">Danh sách Người dùng - {selectedSeason?.ten_mua_vu} ({selectedSeason?.nam})</h2>
           <p className="text-sm text-gray-500 mt-1">Xem người dùng dưới dạng bảng và tìm nhanh theo tên hoặc email.</p>
         </div>
       </div>
@@ -376,11 +376,11 @@ const ExpensesPage = () => {
     return (
       <div>
         <div className="flex items-center gap-3 mb-6">
-          <button onClick={handleBackFromGardens} className="p-2 hover:bg-gray-200 rounded-lg">
+          <button onClick={handleBackFromGardens} className="p-2 hover:bg-green-600 rounded-lg">
             <FaArrowLeft size={20} />
           </button>
           <div>
-            <h2 className="text-2xl font-bold">Danh sách Vườn - {userName}</h2>
+            <h2 className="text-2xl text-green-600 font-bold">Danh sách Vườn - {userName}</h2>
             <p className="text-sm text-gray-500 mt-1">Xem danh sách vườn dưới dạng bảng và tìm nhanh theo tên vườn hoặc địa điểm.</p>
           </div>
         </div>
@@ -453,11 +453,11 @@ const ExpensesPage = () => {
     return (
       <div>
         <div className="flex items-center gap-3 mb-6">
-          <button onClick={handleBackFromExpenses} className="p-2 hover:bg-gray-200 rounded-lg transition">
+          <button onClick={handleBackFromExpenses} className="p-2 hover:bg-green-600 rounded-lg transition">
             <FaArrowLeft size={20} />
           </button>
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Chi Phí - {gardenName}</h2>
+            <h2 className="text-2xl font-bold text-green-600">Chi Phí - {gardenName}</h2>
             <p className="text-sm text-gray-500">Xem danh sách khoản chi và chi tiết từng mục hàng.</p>
           </div>
         </div>
@@ -465,7 +465,7 @@ const ExpensesPage = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
             <div className="text-sm text-gray-500">Số khoản chi</div>
-            <div className="mt-2 text-2xl font-bold text-gray-900">{expensesList.length}</div>
+            <div className="mt-2 text-2xl font-bold text-green-600">{expensesList.length}</div>
           </div>
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
             <div className="text-sm text-gray-500">Tổng chi phí</div>
@@ -473,7 +473,7 @@ const ExpensesPage = () => {
           </div>
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
             <div className="text-sm text-gray-500">Chi phí đang xem</div>
-            <div className="mt-2 text-2xl font-bold text-gray-900">{selectedExpense ? selectedExpense.loai_chi_phi : 'Chưa chọn'}</div>
+            <div className="mt-2 text-2xl font-bold text-green-600">{selectedExpense ? selectedExpense.loai_chi_phi : 'Chưa chọn'}</div>
           </div>
         </div>
 
@@ -482,7 +482,7 @@ const ExpensesPage = () => {
           <div className="lg:col-span-3 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="p-4 border-b border-gray-100 flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-bold text-gray-900">Danh sách chi phí</h3>
+                <h3 className="text-lg font-bold text-green-600">Danh sách chi phí</h3>
                 <p className="text-sm text-gray-500">Chọn một dòng để xem chi tiết mặt hàng ở khung bên phải.</p>
               </div>
               <span className="text-sm text-gray-500">{expensesList.length} bản ghi</span>
@@ -623,7 +623,7 @@ const ExpensesPage = () => {
       <div className="">
         {/* Header */}
                 <div className="mb-6 flex justify-between items-center">
-                  <h1 className="text-3xl font-bold text-gray-900">Quản Lý Chi Phí</h1>
+                  <h1 className="text-3xl font-bold text-green-600">Xem Chi Phí</h1>
                 </div>
 
         <div className="bg-white p-6 rounded-lg shadow-md">

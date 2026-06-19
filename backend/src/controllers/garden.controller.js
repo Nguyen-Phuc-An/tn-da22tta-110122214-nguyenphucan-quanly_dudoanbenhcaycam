@@ -39,7 +39,7 @@ const getCurrentSeasonId = async () => {
 // Tạo vườn mới
 const createGarden = async (req, res) => {
   try {
-    const { ten_vuon, dien_tich, dia_chi, so_cay, don_vi, user_id } = req.body;
+    const { ten_vuon, dien_tich, dia_chi, so_cay, don_vi, user_id, trang_thai } = req.body;
 
     // Kiểm tra dữ liệu bắt buộc
     if (!ten_vuon || !dien_tich || !dia_chi) {
@@ -89,6 +89,7 @@ const createGarden = async (req, res) => {
       dia_chi,
       so_cay: so_cay || 0,
       don_vi: don_vi || 'm²',
+      trang_thai: trang_thai || 'Đang hoạt động',
     });
 
     await garden.save();
@@ -302,7 +303,7 @@ const getSprayProgress = async (req, res) => {
 // Cập nhật vườn
 const updateGarden = async (req, res) => {
   try {
-    const { ten_vuon, dien_tich, dia_chi, so_cay, don_vi } = req.body;
+    const { ten_vuon, dien_tich, dia_chi, so_cay, don_vi, trang_thai } = req.body;
 
     // Kiểm tra vườn tồn tại
     const garden = await Garden.findById(req.params.id);
@@ -328,6 +329,7 @@ const updateGarden = async (req, res) => {
     if (dia_chi) garden.dia_chi = dia_chi;
     if (so_cay !== undefined) garden.so_cay = so_cay;
     if (don_vi) garden.don_vi = don_vi;
+    if (trang_thai) garden.trang_thai = trang_thai;
 
     if (dien_tich !== undefined) {
       const totalPlotArea = await getGardenPlotTotalArea(garden._id);
