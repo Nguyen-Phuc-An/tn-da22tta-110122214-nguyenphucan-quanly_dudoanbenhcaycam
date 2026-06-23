@@ -38,7 +38,7 @@ const FertilizerPage = () => {
       const res = await apiClient.get('/fertilizers');
       setFertilizers(res.data.data || []);
     } catch (error) {
-      console.error('❌ Lỗi lấy danh sách phân bón:', error);
+      console.error('Lỗi lấy danh sách phân bón:', error);
       toast.error('Không thể lấy danh sách phân bón');
     } finally {
       setLoading(false);
@@ -82,13 +82,13 @@ const FertilizerPage = () => {
 
       const res = await apiClient.post('/fertilizers', form_data);
       if (res.data.success) {
-        toast.success('✅ Thêm phân bón thành công');
+        toast.success('Thêm phân bón thành công');
         setModalThem(false);
         resetForm();
         fetchFertilizers();
       }
     } catch (error) {
-      console.error('❌ Lỗi thêm phân bón:', error);
+      console.error('Lỗi thêm phân bón:', error);
       toast.error(error.response?.data?.message || 'Lỗi thêm phân bón');
     }
   };
@@ -103,13 +103,13 @@ const FertilizerPage = () => {
 
       const res = await apiClient.put(`/fertilizers/${selected_id}`, form_data);
       if (res.data.success) {
-        toast.success('✅ Cập nhật phân bón thành công');
+        toast.success('Cập nhật phân bón thành công');
         setModalSua(false);
         resetForm();
         fetchFertilizers();
       }
     } catch (error) {
-      console.error('❌ Lỗi cập nhật phân bón:', error);
+      console.error('Lỗi cập nhật phân bón:', error);
       toast.error(error.response?.data?.message || 'Lỗi cập nhật phân bón');
     }
   };
@@ -119,12 +119,12 @@ const FertilizerPage = () => {
     try {
       const res = await apiClient.delete(`/fertilizers/${id}`);
       if (res.data.success) {
-        toast.success('✅ Xóa phân bón thành công');
+        toast.success('Xóa phân bón thành công');
         fetchFertilizers();
         setShowDeleteConfirm(null);
       }
     } catch (error) {
-      console.error('❌ Lỗi xóa phân bón:', error);
+      console.error('Lỗi xóa phân bón:', error);
       toast.error(error.response?.data?.message || 'Lỗi xóa phân bón');
     }
   };

@@ -62,6 +62,11 @@ ${i + 1}. ${d.ten_benh} (${Math.round(p.confidence * 100)}%)
       `;
     }).join('\n');
 
+    // Build prompt: when multiple diseases selected, force combined advice explicitly
+    const multiDiseaseHeader = predictions.length > 1
+      ? 'LƯU Ý: BẠN ĐÃ CHỌN NHIỀU BỆNH. KHÔNG CHỌN BỆNH CHÍNH. HÃY TRẢ LỜI BẰNG MỘT TƯ VẤN TỔNG HỢP CHO TẤT CẢ CÁC BỆNH DƯỚI ĐÂY.'
+      : 'Hãy đưa tư vấn cho bệnh được cung cấp.';
+
     const prompt = `
     Bạn là chuyên gia nông nghiệp và hệ thống tư vấn AI.
 
@@ -69,28 +74,29 @@ ${i + 1}. ${d.ten_benh} (${Math.round(p.confidence * 100)}%)
     - KHÔNG sử dụng lời chào (ví dụ: "Chào bạn")
     - Viết theo văn phong học thuật, rõ ràng, súc tích
     - Không dùng cảm xúc hoặc văn nói
-    - Trình bày thành đoạn văn logic, tối đa 5 câu
+    - Trình bày thành đoạn văn logic, tối đa 6 câu
 
-    Thông tin bệnh:
+    ${multiDiseaseHeader}
+
+    Thông tin bệnh (danh sách các bệnh và tỷ lệ dự đoán):
 
     ${diseasesList}
 
     Yêu cầu nội dung:
-    - Xác định bệnh chính
-    - Nếu nhiều bệnh → đưa giải pháp tổng hợp
-    - Nêu nguyên nhân chính
-    - Đưa hướng xử lý cụ thể
-    - Chỉ sử dụng phân bón/thuốc trong danh sách được phép
+    - Nếu có nhiều bệnh: HÃY TRÌNH BÀY MỘT GIẢI PHÁP TỔNG HỢP phục vụ cho việc xử lý đồng thời các bệnh đã liệt kê; không chỉ chọn 1 bệnh chính.
+    - Nêu nguyên nhân chính cho từng bệnh ngắn gọn nếu có thể, rồi tóm tắt các hướng xử lý chung, ưu tiên các biện pháp canh tác không hoá học trước.
+    - Đưa các bước xử lý cụ thể, thời điểm và mức độ can thiệp (ví dụ ngưỡng % lá nhiễm hoặc mật độ sâu) nếu có.
+    - Chỉ đề xuất phân bón/thuốc nếu chúng xuất hiện trong danh sách "phân bón được phép đề xuất" hoặc "thuốc được phép đề xuất".
 
     Ràng buộc:
     - KHÔNG bịa thêm tên thuốc/phân bón
     - Nếu không có dữ liệu → nói rõ "chưa có gợi ý từ cơ sở dữ liệu"
 
     Định dạng output:
-    - Không xuống dòng lung tung
-    - Không markdown (**)
-    - Không bullet
-    - Viết thành 1 đoạn hoàn chỉnh
+    - Không xuống dòng linh tinh
+    - Không dùng Markdown, không dùng bullet
+    - Viết thành 1 đoạn hoàn chỉnh, không dùng bullet hoặc markdown
+    - Không chào hỏi, không kêu gọi hành động
     `;
 
     const result = await model.generateContent(prompt);
@@ -102,6 +108,12 @@ ${i + 1}. ${d.ten_benh} (${Math.round(p.confidence * 100)}%)
       code: error.code,
       status: error.status
     });
+
+    // Thông báo cụ thể nếu lỗi do vị trí người dùng không được hỗ trợ
+    if (error.message && error.message.includes('User location is not supported')) {
+      return 'Dịch vụ tư vấn AI chưa khả dụng tại vị trí của bạn. Vui lòng thử lại sau hoặc liên hệ quản trị.';
+    }
+
     return "Không thể tạo tư vấn AI lúc này. Vui lòng thử lại sau.";
   }
 };
@@ -148,6 +160,9 @@ Yêu cầu:
       code: error.code,
       status: error.status
     });
+    if (error.message && error.message.includes('User location is not supported')) {
+      return 'Dịch vụ tư vấn AI chưa khả dụng tại vị trí của bạn. Vui lòng thử lại sau hoặc liên hệ quản trị.';
+    }
     return "Không thể tạo tư vấn AI lúc này. Vui lòng thử lại sau.";
   }
 };
@@ -528,6 +543,46 @@ const getAdviceForSelectedDisease = async (req, res) => {
   }
 };
 
+// Nhận nhiều bệnh được chọn và trả về tư vấn tổng hợp từ AI (không lưu vào DB)
+const getAdviceForSelectedDiseases = async (req, res) => {
+  try {
+    const { predictions } = req.body; // predictions: [{ disease_en, confidence }, ...]
+
+    if (!predictions || !Array.isArray(predictions) || predictions.length === 0) {
+      return res.status(400).json({ success: false, message: 'Vui lòng gửi danh sách dự đoán (top-k) để tư vấn' });
+    }
+
+    // Lấy danh sách disease_en
+    const labels = predictions.map(p => String(p.disease_en).trim()).filter(Boolean);
+
+    const diseases = await Disease.find({ ten_benh_en: { $in: labels } })
+      .populate('goi_y_phan_bon', 'ten_phan_bon thanh_phan cong_dung')
+      .populate('goi_y_thuoc', 'ten_thuoc loai hoat_chat cach_su_dung muc_do_doc_hai');
+
+    if (!diseases || diseases.length === 0) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy thông tin bệnh để tư vấn' });
+    }
+
+    // build map
+    const diseaseMap = {};
+    diseases.forEach(d => { diseaseMap[d.ten_benh_en] = d; });
+
+    // Normalize predictions shape to { label, confidence } expected by generateAIAdvice
+    const normalizedPreds = predictions.map(p => ({
+      label: String(p.disease_en || p.label || '').trim(),
+      confidence: typeof p.confidence === 'number' ? p.confidence : parseFloat(p.confidence) || 0,
+    })).filter(p => p.label);
+
+    // Gọi generator AI với danh sách predictions và map
+    const advice = await generateAIAdvice(normalizedPreds, diseaseMap);
+
+    return res.json({ success: true, data: { predictions, advice } });
+  } catch (error) {
+    console.error('❌ Lỗi tư vấn nhiều bệnh:', error.message);
+    return res.status(500).json({ success: false, message: 'Lỗi hệ thống', error: error.message });
+  }
+};
+
 // Xóa dự đoán
 const deletePrediction = async (req, res) => {
   try {
@@ -642,6 +697,7 @@ module.exports = {
   getPredictionsByUser,
   getPredictionById,
   getAdviceForSelectedDisease,
+  getAdviceForSelectedDiseases,
   deletePrediction,
   getAllPredictions,
 };

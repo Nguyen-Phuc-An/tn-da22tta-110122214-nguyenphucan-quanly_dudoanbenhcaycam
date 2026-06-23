@@ -21,6 +21,7 @@ const PredictPage = () => {
   const [selectedTopDisease, setSelectedTopDisease] = useState(null);
   const [predictions, setPredictions] = useState([]);
   const [selectedPrediction, setSelectedPrediction] = useState(null);
+  const [multiSelectedPreds, setMultiSelectedPreds] = useState([]); // array of ten_benh_en
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
   const CONFIDENCE_THRESHOLD = 80;
@@ -79,7 +80,7 @@ const PredictPage = () => {
       // Refresh predictions list
       fetchPredictions();
     } catch (error) {
-      console.error('❌ Lỗi dự đoán:', error);
+      console.error('Lỗi dự đoán:', error);
       toast.error(error.response?.data?.message || 'Dự đoán thất bại');
     } finally {
       setLoading(false);
@@ -163,7 +164,7 @@ const PredictPage = () => {
 
       setSelectedAdvice(response.data?.data?.advice || '');
     } catch (error) {
-      console.error('❌ Lỗi lấy tư vấn AI:', error);
+      console.error('Lỗi lấy tư vấn AI:', error);
       toast.error(error.response?.data?.message || 'Không thể tạo tư vấn AI');
     } finally {
       setSelectedAdviceLoading(false);
@@ -324,28 +325,82 @@ const PredictPage = () => {
                     <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2"><FaList className="text-blue-600" /> Top 3 bệnh khả năng</h4>
                     <p className="mb-3 text-sm text-gray-600">Chọn 1 bệnh bên dưới để AI tư vấn đúng theo kết quả bạn muốn xem.</p>
                     <div className="space-y-2">
-                      {result.top_3.map((pred, idx) => (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => handleSelectTopDisease(pred)}
-                          className={`w-full rounded-lg p-3 flex justify-between items-center transition text-left ${
-                            selectedTopDisease?.ten_benh_en === pred.ten_benh_en
-                              ? 'bg-green-100 border border-green-300'
-                              : 'bg-gray-100 hover:bg-gray-200'
-                          }`}
-                        >
-                          <div>
-                            <p className="font-semibold text-gray-900">#{idx + 1} {pred.ten_benh}</p>
-                            <p className="text-sm text-gray-600">{pred.ten_benh_en}</p>
+                      {result.top_3.map((pred, idx) => {
+                        const checked = multiSelectedPreds.includes(pred.ten_benh_en);
+                        return (
+                        <div key={idx} className={`w-full rounded-lg p-3 flex justify-between items-center transition text-left ${selectedTopDisease?.ten_benh_en === pred.ten_benh_en ? 'bg-green-100 border border-green-300' : 'bg-gray-100 hover:bg-gray-200'}`}>
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              disabled={!!selectedAdvice || selectedAdviceLoading}
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                const next = e.target.checked
+                                  ? Array.from(new Set([...multiSelectedPreds, pred.ten_benh_en]))
+                                  : multiSelectedPreds.filter(x => x !== pred.ten_benh_en);
+                                setMultiSelectedPreds(next);
+                              }}
+                            />
+                            <div>
+                              <p className="font-semibold text-gray-900">#{idx + 1} {pred.ten_benh}</p>
+                              <p className="text-sm text-gray-600">{pred.ten_benh_en}</p>
+                            </div>
                           </div>
                           <div className="text-right">
                             <p className="text-lg font-bold text-blue-600">
                               {getConfidencePercent(pred.confidence)}%
                             </p>
                           </div>
-                        </button>
-                      ))}
+                        </div>
+                        );
+                      })}
+
+                      {!selectedAdvice && (
+                        <div className="flex items-center gap-3 mt-3">
+                          <button
+                            type="button"
+                            disabled={multiSelectedPreds.length === 0 || selectedAdviceLoading}
+                            onClick={async () => {
+                              try {
+                                setSelectedAdviceLoading(true);
+                                setSelectedAdvice('');
+
+                                // build payload: [{ disease_en, confidence }, ...]
+                                const payload = result.top_3
+                                  .filter(p => multiSelectedPreds.includes(p.ten_benh_en))
+                                  .map(p => ({ disease_en: p.ten_benh_en, confidence: p.confidence }));
+
+                                const res = await apiClient.post('/predictions/advice-multi', { predictions: payload });
+                                setSelectedAdvice(res.data?.data?.advice || '');
+                                // clear single selection
+                                setSelectedTopDisease(null);
+                              } catch (err) {
+                                console.error('Lỗi lấy tư vấn nhiều bệnh:', err);
+                                toast.error(err.response?.data?.message || 'Không thể lấy tư vấn AI');
+                              } finally {
+                                setSelectedAdviceLoading(false);
+                              }
+                            }}
+                            className={`px-4 py-2 rounded-lg bg-purple-600 text-white ${multiSelectedPreds.length === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-purple-700'}`}
+                          >
+                            Gửi để tư vấn cho {multiSelectedPreds.length} bệnh đã chọn
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              // reset multi selection
+                              setMultiSelectedPreds([]);
+                              setSelectedAdvice('');
+                            }}
+                            className="px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200"
+                          >
+                            Bỏ chọn
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -358,7 +413,7 @@ const PredictPage = () => {
                       <FaBrain className="text-purple-600" />
                       Tư Vấn AI từ Gemini
                     </p>
-                    {!selectedTopDisease ? (
+                    {(!selectedTopDisease && !selectedAdvice) ? (
                       <p className="text-sm text-gray-600">Hãy chọn 1 trong 3 kết quả để xem tư vấn AI.</p>
                     ) : selectedAdviceLoading ? (
                       <div className="space-y-3">
@@ -380,7 +435,7 @@ const PredictPage = () => {
                     ) : (
                       <div className="space-y-2">
                         <p className="text-sm font-semibold text-gray-800">
-                          Tư vấn cho: {selectedTopDisease.ten_benh}
+                          {selectedTopDisease ? `Tư vấn cho: ${selectedTopDisease.ten_benh}` : `Tư vấn tổng hợp cho ${multiSelectedPreds.length} bệnh`}
                         </p>
                         <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed text-justify">
                           {formatAIText(selectedAdvice)}

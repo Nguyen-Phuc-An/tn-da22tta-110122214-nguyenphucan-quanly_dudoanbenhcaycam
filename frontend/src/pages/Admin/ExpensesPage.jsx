@@ -303,7 +303,7 @@ const ExpensesPage = () => {
   const renderUserListView = () => (
     <div>
       <div className="flex items-center gap-3 mb-6">
-        <button onClick={handleBackFromUser} className="p-2 hover:bg-green-600 rounded-lg">
+        <button onClick={handleBackFromUser} className="p-2 hover:bg-gray-200 rounded-lg">
           <FaArrowLeft size={20} />
         </button>
         <div>
@@ -376,7 +376,7 @@ const ExpensesPage = () => {
     return (
       <div>
         <div className="flex items-center gap-3 mb-6">
-          <button onClick={handleBackFromGardens} className="p-2 hover:bg-green-600 rounded-lg">
+          <button onClick={handleBackFromGardens} className="p-2 hover:bg-gray-200 rounded-lg">
             <FaArrowLeft size={20} />
           </button>
           <div>

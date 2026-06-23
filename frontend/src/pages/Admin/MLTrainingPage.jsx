@@ -40,7 +40,7 @@ const MLTrainingPage = () => {
         setTrainingStatus(res.data.data);
       }
     } catch (error) {
-      console.error('❌ Error fetching status:', error);
+      console.error('Error fetching status:', error);
       toast.error('Không thể lấy trạng thái');
     } finally {
       setLoading(false);
@@ -54,7 +54,7 @@ const MLTrainingPage = () => {
         setMaintenanceMode(Boolean(res.data.data?.maintenanceMode));
       }
     } catch (error) {
-      console.error('❌ Error fetching maintenance status:', error);
+      console.error('Error fetching maintenance status:', error);
     }
   };
 
@@ -70,7 +70,7 @@ const MLTrainingPage = () => {
         toast.success(res.data.message || 'Đã cập nhật chế độ bảo trì');
       }
     } catch (error) {
-      console.error('❌ Toggle maintenance error:', error);
+      console.error('Toggle maintenance error:', error);
       toast.error(error.response?.data?.message || 'Không thể cập nhật chế độ bảo trì');
     } finally {
       setMaintenanceLoading(false);
@@ -102,7 +102,7 @@ const MLTrainingPage = () => {
           setTimeout(() => {
             fetchTrainingStatus();
             setRetraining(false);
-            toast.success('✅ Đào tạo hoàn thành!');
+            toast.success('Đào tạo hoàn thành!');
           }, 1000);
         }
       } catch (error) {
@@ -181,10 +181,10 @@ const MLTrainingPage = () => {
         uploadedAt: new Date().toLocaleString('vi-VN'),
       });
 
-      toast.success(`✅ Đã tải lên ${uploadedCount} ảnh cho ${diseaseLabel}`, { id: 'ml-upload' });
+      toast.success(`Đã tải lên ${uploadedCount} ảnh cho ${diseaseLabel}`, { id: 'ml-upload' });
       fetchTrainingStatus();
     } catch (error) {
-      console.error('❌ Upload error:', error);
+      console.error('Upload error:', error);
       toast.error(error.response?.data?.message || error.message || 'Lỗi tải lên', { id: 'ml-upload' });
     } finally {
       // Reset input
@@ -210,11 +210,11 @@ const MLTrainingPage = () => {
       // Trigger retrain
       const res = await apiClient.post('/ml/retrain');
       if (res.data.success) {
-        toast.success('🔄 Bắt đầu đào tạo model (chạy nền)');
+        toast.success('Bắt đầu đào tạo model (chạy nền)');
         console.log('Training status:', res.data.data.status);
       }
     } catch (error) {
-      console.error('❌ Retrain error:', error);
+      console.error('Retrain error:', error);
       toast.error(error.response?.data?.message || 'Lỗi đào tạo');
       setRetraining(false);
     }
@@ -225,6 +225,16 @@ const MLTrainingPage = () => {
   const evaluation = trainingStatus.evaluation || progress.metrics || null;
   const testMetrics = evaluation?.test || null;
   const trainingResults = trainingStatus.trainingResults || progress.trainingResults || null;
+
+  // Derived totals from diseasesData
+  const totalImagesFromDiseases = Object.values(diseasesData || {}).reduce(
+    (sum, d) => sum + Number(d.count || d.total || 0),
+    0
+  );
+  const totalNewImagesFromDiseases = Object.values(diseasesData || {}).reduce(
+    (sum, d) => sum + Number(d.new_images || d.training_images || 0),
+    0
+  );
 
   const formatPercent = (value) => `${(Number(value || 0) * 100).toFixed(2)}%`;
   const formatLoss = (value) => Number(value || 0).toFixed(4);
@@ -347,25 +357,72 @@ const MLTrainingPage = () => {
           </div>
         )}
 
-        {/* Summary Card */}
+        {/* Summary Card (show only New and Total per request) */}
         <div className="bg-gray-900 text-white rounded-lg p-6 shadow">
-          <div className="grid grid-cols-4 gap-4 text-center">
+          <div className="grid grid-cols-3 gap-4 text-center">
             <div>
               <p className="text-sm opacity-80">Số Bệnh</p>
-              <p className="text-3xl font-bold">{summary.total_diseases || 0}</p>
-            </div>
-            <div>
-              <p className="text-sm opacity-80">Ảnh Gốc</p>
-              <p className="text-3xl font-bold">{summary.original_images || 0}</p>
+              <p className="text-3xl font-bold">{summary.total_diseases || Object.keys(diseasesData).length || 0}</p>
             </div>
             <div>
               <p className="text-sm opacity-80">Ảnh Mới</p>
-              <p className="text-3xl font-bold">{summary.training_images || 0}</p>
+              <p className="text-3xl font-bold">{totalNewImagesFromDiseases || summary.training_images || summary.new_images || 0}</p>
             </div>
             <div>
-              <p className="text-sm opacity-80">Tổng Cộng</p>
-              <p className="text-3xl font-bold">{summary.total_images || 0}</p>
+              <p className="text-sm opacity-80">Tổng</p>
+              <p className="text-3xl font-bold">{totalImagesFromDiseases || summary.total_images || summary.count || 0}</p>
             </div>
+          </div>
+        </div>
+
+        {/* Dataset split counts (80/10/10) */}
+        <div className="bg-white rounded-lg border p-4 shadow-sm">
+          <div className="flex justify-between text-center">
+            
+            {/* Train */}
+            <div className="flex-1">
+              <p className="text-sm text-gray-500">Tập Huấn Luyện (80%)</p>
+              <p className="font-bold text-gray-900">
+                {(() => {
+                  const totals = Object.values(diseasesData || {}).reduce(
+                    (s, d) => s + Number(d.count || d.total || 0),
+                    0
+                  );
+                  return Math.round(totals * 0.8);
+                })()}
+              </p>
+            </div>
+
+            {/* Validation */}
+            <div className="flex-1">
+              <p className="text-sm text-gray-500">Tập Xác Thực (10%)</p>
+              <p className="font-bold text-gray-900">
+                {(() => {
+                  const totals = Object.values(diseasesData || {}).reduce(
+                    (s, d) => s + Number(d.count || d.total || 0),
+                    0
+                  );
+                  return Math.round(totals * 0.1);
+                })()}
+              </p>
+            </div>
+
+            {/* Test */}
+            <div className="flex-1">
+              <p className="text-sm text-gray-500">Tập Test (10%)</p>
+              <p className="font-bold text-gray-900">
+                {(() => {
+                  const totals = Object.values(diseasesData || {}).reduce(
+                    (s, d) => s + Number(d.count || d.total || 0),
+                    0
+                  );
+                  const train = Math.round(totals * 0.8);
+                  const val = Math.round(totals * 0.1);
+                  return totals - train - val;
+                })()}
+              </p>
+            </div>
+
           </div>
         </div>
 
@@ -599,23 +656,15 @@ const MLTrainingPage = () => {
                     </p>
                   </div>
 
-                  {/* Stats */}
-                  <div className="grid grid-cols-3 gap-2 text-center bg-gray-50 p-3 rounded">
-                    <div>
-                      <p className="text-xs text-gray-600">Ảnh Gốc</p>
-                      <p className="font-bold text-lg">{data.count}</p>
-                    </div>
+                  {/* Stats: show only New and Total. Total = data.count, New = data.new_images */}
+                  <div className="grid grid-cols-2 gap-2 text-center bg-gray-50 p-3 rounded">
                     <div>
                       <p className="text-xs text-gray-600">Ảnh Mới</p>
-                      <p className="font-bold text-lg text-gray-900">
-                        {data.new_images}
-                      </p>
+                      <p className="font-bold text-lg text-gray-900">{data.new_images || 0}</p>
                     </div>
                     <div>
                       <p className="text-xs text-gray-600">Tổng</p>
-                      <p className="font-bold text-lg">
-                        {(data.total || data.count + data.new_images)}
-                      </p>
+                      <p className="font-bold text-lg">{data.count || (data.total || 0)}</p>
                     </div>
                   </div>
 

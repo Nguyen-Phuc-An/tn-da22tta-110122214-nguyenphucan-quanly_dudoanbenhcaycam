@@ -45,7 +45,7 @@ const ProfilePage = () => {
       const updatedUser = { ...user, ...formData };
       localStorage.setItem('user', JSON.stringify(updatedUser));
     } catch (error) {
-      console.error('❌ Lỗi cập nhật:', error);
+      console.error('Lỗi cập nhật:', error);
       toast.error(error.response?.data?.message || 'Cập nhật thất bại');
     } finally {
       setLoading(false);
@@ -68,7 +68,7 @@ const ProfilePage = () => {
       toast.success('Đổi mật khẩu thành công');
       setPasswordForm({ oldPassword: '', newPassword: '', confirmPassword: '' });
     } catch (error) {
-      console.error('❌ Lỗi đổi mật khẩu:', error);
+      console.error('Lỗi đổi mật khẩu:', error);
       toast.error(error.response?.data?.message || 'Đổi mật khẩu thất bại');
     } finally {
       setLoading(false);

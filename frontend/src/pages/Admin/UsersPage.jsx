@@ -31,7 +31,7 @@ const UsersPage = () => {
       console.log('✓ Users loaded:', res.data.data?.length || 0);
       setUsers(res.data.data || []);
     } catch (err) {
-      console.error('❌ Error fetching users:', err);
+      console.error('Error fetching users:', err);
       toast.error('Không thể tải danh sách người dùng');
     } finally {
       setLoading(false);
@@ -53,7 +53,7 @@ const UsersPage = () => {
           : u
       ));
     } catch (err) {
-      console.error('❌ Error locking user:', err);
+      console.error('Error locking user:', err);
       toast.error(err.response?.data?.message || 'Không thể cập nhật trạng thái người dùng');
     }
   };
@@ -133,7 +133,7 @@ const UsersPage = () => {
       await fetchUsers();
       closeForm();
     } catch (err) {
-      console.error('❌ Error saving user:', err);
+      console.error('Error saving user:', err);
       toast.error(err.response?.data?.message || 'Không thể lưu người dùng');
     } finally {
       setSubmitting(false);

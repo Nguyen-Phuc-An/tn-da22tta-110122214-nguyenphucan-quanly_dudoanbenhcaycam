@@ -51,7 +51,7 @@ const GardenDetailPage = () => {
 
       console.log('✓ Garden data loaded');
     } catch (error) {
-      console.error('❌ Lỗi tải vườn:', error);
+      console.error('Lỗi tải vườn:', error);
       toast.error('Không thể tải thông tin vườn');
       navigate('/user/gardens');
     } finally {
@@ -118,7 +118,7 @@ const GardenDetailPage = () => {
       reset(plotDefaults);
       await fetchGardenData();
     } catch (error) {
-      console.error('❌ Lỗi lưu mẫu đất:', error);
+      console.error('Lỗi lưu mẫu đất:', error);
       toast.error(error.response?.data?.message || 'Không thể lưu mẫu đất');
     }
   };
@@ -133,7 +133,7 @@ const GardenDetailPage = () => {
       toast.success('Xóa mẫu đất thành công');
       await fetchGardenData();
     } catch (error) {
-      console.error('❌ Lỗi xóa mẫu đất:', error);
+      console.error('Lỗi xóa mẫu đất:', error);
       toast.error(error.response?.data?.message || 'Không thể xóa mẫu đất');
     }
   };

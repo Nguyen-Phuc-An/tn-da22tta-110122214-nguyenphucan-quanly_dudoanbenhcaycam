@@ -14,6 +14,23 @@ apiClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
     if (token) {
+      try {
+        const parts = token.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(atob(parts[1]));
+          const now = Math.floor(Date.now() / 1000);
+          if (payload.exp && payload.exp <= now) {
+            // Token expired locally — clear and redirect to login without calling API
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = '/login';
+            return Promise.reject(new Error('Token expired'));
+          }
+        }
+      } catch (e) {
+        // ignore parse errors and proceed to attach token (backend will verify)
+      }
+
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;

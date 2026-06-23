@@ -36,7 +36,7 @@ const SeasonsPage = () => {
       console.log('✓ Seasons loaded:', res.data.data?.length || 0);
       setSeasons(res.data.data || []);
     } catch (err) {
-      console.error('❌ Error fetching seasons:', err);
+      console.error('Error fetching seasons:', err);
       toast.error('Không thể tải danh sách mùa vụ');
     } finally {
       setLoading(false);
@@ -81,7 +81,7 @@ const SeasonsPage = () => {
       setSeasons(seasons.filter((s) => s._id !== seasonId));
       setShowDeleteConfirm(null);
     } catch (err) {
-      console.error('❌ Error deleting season:', err);
+      console.error('Error deleting season:', err);
       toast.error(err.response?.data?.message || 'Không thể xóa mùa vụ');
     }
   };

@@ -90,7 +90,7 @@ const NotificationsPage = () => {
       const res = await notificationService.getAllNotifications();
       setNotifications(res.data || []);
     } catch (error) {
-      console.error('❌ Lỗi tải thông báo:', error);
+      console.error('Lỗi tải thông báo:', error);
       toast.error(error.response?.data?.message || 'Không thể tải danh sách thông báo');
     } finally {
       setLoading(false);
@@ -229,7 +229,7 @@ const NotificationsPage = () => {
       const res = await apiClient.get(`/notifications/${notification._id}/control-detail`);
       setControlDetail(res.data.data || null);
     } catch (error) {
-      console.error('❌ Lỗi tải chi tiết thông báo kiểm soát:', error);
+      console.error('Lỗi tải chi tiết thông báo kiểm soát:', error);
       toast.error(error.response?.data?.message || 'Không thể tải chi tiết thông báo kiểm soát');
     } finally {
       setControlDetailLoading(false);
@@ -247,7 +247,7 @@ const NotificationsPage = () => {
       await fetchNotifications();
       toast.success(res.data?.message || 'Đã gửi thông báo nhắc nhở');
     } catch (error) {
-      console.error('❌ Lỗi gửi nhắc nhở kiểm soát:', error);
+      console.error('Lỗi gửi nhắc nhở kiểm soát:', error);
       toast.error(error.response?.data?.message || 'Không thể gửi nhắc nhở');
     } finally {
       setSendingReminder(false);
@@ -289,7 +289,7 @@ const NotificationsPage = () => {
       clearForm();
       setShowForm(false);
     } catch (error) {
-      console.error('❌ Lỗi lưu thông báo:', error);
+      console.error('Lỗi lưu thông báo:', error);
       toast.error(error.response?.data?.message || 'Không thể lưu thông báo');
     }
   };
@@ -301,7 +301,7 @@ const NotificationsPage = () => {
       toast.success('Xóa thông báo thành công');
       setShowDeleteConfirm(null);
     } catch (error) {
-      console.error('❌ Lỗi xóa thông báo:', error);
+      console.error('Lỗi xóa thông báo:', error);
       toast.error(error.response?.data?.message || 'Không thể xóa thông báo');
     }
   };

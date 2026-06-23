@@ -96,7 +96,7 @@ const LogsPage = () => {
       setTasks(tasksRes.data.data || []);
       setLogs(allLogs);
     } catch (error) {
-      console.error('❌ Error fetching data:', error);
+      console.error('Error fetching data:', error);
       toast.error('Không thể tải dữ liệu');
     } finally {
       setLoading(false);
@@ -157,7 +157,7 @@ const LogsPage = () => {
       setLogs((currentLogs) => currentLogs.filter((log) => log._id !== logId));
       setShowDeleteConfirm(null);
     } catch (err) {
-      console.error('❌ Error deleting log:', err);
+      console.error('Error deleting log:', err);
       toast.error(err.response?.data?.message || 'Không thể xóa nhật ký');
     }
   };
@@ -210,7 +210,7 @@ const LogsPage = () => {
       );
       toast.success(nextCompleted ? 'Đã đánh dấu hoàn thành' : 'Đã bỏ đánh dấu hoàn thành');
     } catch (err) {
-      console.error('❌ Error toggling log completion:', err);
+      console.error('Error toggling log completion:', err);
       toast.error(err.response?.data?.message || 'Không thể cập nhật trạng thái');
     }
   };

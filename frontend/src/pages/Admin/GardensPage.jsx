@@ -38,7 +38,7 @@ const GardensPage = () => {
       console.log('✓ Gardens loaded:', res.data.data?.length || 0);
       setGardens(res.data.data || []);
     } catch (err) {
-      console.error('❌ Error fetching gardens:', err);
+      console.error('Error fetching gardens:', err);
       toast.error('Không thể tải danh sách vườn');
     } finally {
       setLoading(false);
@@ -51,7 +51,7 @@ const GardensPage = () => {
       console.log('✓ Users loaded:', res.data.data?.length || 0);
       setUsers(res.data.data || []);
     } catch (err) {
-      console.error('❌ Error fetching users:', err);
+      console.error('Error fetching users:', err);
       toast.error('Không thể tải danh sách người dùng');
     }
   };
@@ -88,7 +88,7 @@ const GardensPage = () => {
       toast.success(`Cập nhật trạng thái vườn thành '${newStatus}'`);
       console.log('✓ Garden status toggled:', garden._id, newStatus);
     } catch (err) {
-      console.error('❌ Error toggling garden status:', err);
+      console.error('Error toggling garden status:', err);
       toast.error(err.response?.data?.message || 'Không thể cập nhật trạng thái vườn');
     }
   };

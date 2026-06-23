@@ -113,7 +113,7 @@ const ExpensesPage = () => {
       setFertilizers(fertilizerRes.data.data || []);
       setPesticides(pesticideRes.data.data || []);
     } catch (err) {
-      console.error('❌ Error fetching expense suggestions:', err);
+      console.error('Error fetching expense suggestions:', err);
     }
   };
 
@@ -124,7 +124,7 @@ const ExpensesPage = () => {
       console.log('✓ Expenses loaded:', res.data.data?.length || 0);
       setExpenses(res.data.data || []);
     } catch (err) {
-      console.error('❌ Error fetch expenses:', err);
+      console.error('Error fetch expenses:', err);
       toast.error('Không thể tải danh sách chi phí');
     } finally {
       setLoading(false);
@@ -315,7 +315,7 @@ const ExpensesPage = () => {
       setExpenses(expenses.filter((e) => e._id !== expenseId));
       setShowDeleteConfirm(null);
     } catch (err) {
-      console.error('❌ Error deleting expense:', err);
+      console.error('Error deleting expense:', err);
       toast.error(err.response?.data?.message || 'Không thể xóa chi phí');
     }
   };

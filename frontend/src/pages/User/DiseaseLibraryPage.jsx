@@ -28,7 +28,7 @@ const DiseaseLibraryPage = () => {
       setSelectedDisease(diseaseData[0] || null);
       setActiveView('info');
     } catch (error) {
-      console.error('❌ Lỗi tải thư viện bệnh:', error);
+      console.error('Lỗi tải thư viện bệnh:', error);
       toast.error('Không thể tải thư viện bệnh cây');
     } finally {
       setLoading(false);

@@ -22,7 +22,7 @@ const GardensPage = () => {
       console.log('✓ Gardens loaded:', res.data.data?.length || 0);
       setGardens(res.data.data || []);
     } catch (err) {
-      console.error('❌ Error fetching gardens:', err);
+      console.error('Error fetching gardens:', err);
       toast.error('Không thể tải danh sách vườn');
     } finally {
       setLoading(false);
@@ -42,7 +42,7 @@ const GardensPage = () => {
       <div>
         {/* Header */}
         <div className="mb-6 flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-gray-900">Vườn Của Tôi</h1>
+          <h1 className="text-3xl font-bold text-green-600">Vườn Của Tôi</h1>
         </div>
 
         {/* Create/Edit form removed for users */}

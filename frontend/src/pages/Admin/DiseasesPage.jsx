@@ -7,6 +7,19 @@ import { useForm } from 'react-hook-form';
 
 const DiseasesPage = () => {
   const HIDDEN_DISEASES = new Set(['melanose']);
+  // Core diseases that must not be deletable from the admin UI.
+  // If you need to adjust which diseases are protected, update this list
+  // to match the `ten_benh_en` values used by the backend.
+  const PROTECTED_DISEASES = new Set([
+    'multiple',
+    'canker',
+    'greening',
+    'greasy_spot',
+    'black_spot',
+    'healthy',
+    'leafminer',
+    'deficiency',
+  ]);
   const [diseases, setDiseases] = useState([]);
   const [fertilizers, setFertilizers] = useState([]);
   const [pesticides, setPesticides] = useState([]);
@@ -50,7 +63,7 @@ const DiseasesPage = () => {
       setFertilizers(fertilizerRes.data.data || []);
       setPesticides(pesticideRes.data.data || []);
     } catch (error) {
-      console.error('❌ Error fetching suggestions:', error);
+      console.error('Error fetching suggestions:', error);
       toast.error('Không thể tải danh sách gợi ý phân bón/thuốc');
     }
   };
@@ -63,7 +76,7 @@ const DiseasesPage = () => {
       console.log('✓ Diseases loaded:', visibleDiseases.length);
       setDiseases(visibleDiseases);
     } catch (err) {
-      console.error('❌ Error fetching diseases:', err);
+      console.error('Error fetching diseases:', err);
       toast.error('Không thể tải danh sách bệnh');
     } finally {
       setLoading(false);
@@ -183,6 +196,15 @@ const DiseasesPage = () => {
     : [];
 
   const handleDeleteDisease = async (diseaseId) => {
+    const disease = diseases.find((d) => d._id === diseaseId);
+    if (!disease) return setShowDeleteConfirm(null);
+
+    if (PROTECTED_DISEASES.has(disease.ten_benh_en)) {
+      toast.error('Không thể xóa bệnh lõi hệ thống');
+      setShowDeleteConfirm(null);
+      return;
+    }
+
     try {
       await apiClient.delete(`/diseases/${diseaseId}`);
       console.log('✓ Disease deleted:', diseaseId);
@@ -190,7 +212,7 @@ const DiseasesPage = () => {
       setDiseases(diseases.filter((d) => d._id !== diseaseId));
       setShowDeleteConfirm(null);
     } catch (err) {
-      console.error('❌ Error deleting disease:', err);
+      console.error('Error deleting disease:', err);
       toast.error(err.response?.data?.message || 'Không thể xóa bệnh');
     }
   };
@@ -517,12 +539,23 @@ const DiseasesPage = () => {
                       >
                         <FaEdit className="inline mr-1" /> Sửa
                       </button>
-                      <button
-                        onClick={() => setShowDeleteConfirm(disease._id)}
-                        className="px-3 py-1 bg-red-50 text-red-600 rounded hover:bg-red-100 transition text-sm"
-                      >
-                        <FaTrash className="inline mr-1" /> Xóa
-                      </button>
+                      {PROTECTED_DISEASES.has(disease.ten_benh_en) ? (
+                        <button
+                          type="button"
+                          disabled
+                          title="Bệnh lõi - không thể xóa"
+                          className="px-3 py-1 bg-gray-100 text-gray-400 rounded text-sm cursor-not-allowed"
+                        >
+                          <FaTrash className="inline mr-1" /> Xóa
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setShowDeleteConfirm(disease._id)}
+                          className="px-3 py-1 bg-red-50 text-red-600 rounded hover:bg-red-100 transition text-sm"
+                        >
+                          <FaTrash className="inline mr-1" /> Xóa
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

@@ -38,7 +38,7 @@ const PesticidePage = () => {
       const res = await apiClient.get('/pesticides');
       setPesticides(res.data.data || []);
     } catch (error) {
-      console.error('❌ Lỗi lấy danh sách thuốc:', error);
+      console.error('Lỗi lấy danh sách thuốc:', error);
       toast.error('Không thể lấy danh sách thuốc');
     } finally {
       setLoading(false);
@@ -82,13 +82,13 @@ const PesticidePage = () => {
 
       const res = await apiClient.post('/pesticides', form_data);
       if (res.data.success) {
-        toast.success('✅ Thêm thuốc thành công');
+        toast.success('Thêm thuốc thành công');
         setModalThem(false);
         resetForm();
         fetchPesticides();
       }
     } catch (error) {
-      console.error('❌ Lỗi thêm thuốc:', error);
+      console.error('Lỗi thêm thuốc:', error);
       toast.error(error.response?.data?.message || 'Lỗi thêm thuốc');
     }
   };
@@ -103,13 +103,13 @@ const PesticidePage = () => {
 
       const res = await apiClient.put(`/pesticides/${selected_id}`, form_data);
       if (res.data.success) {
-        toast.success('✅ Cập nhật thuốc thành công');
+        toast.success('Cập nhật thuốc thành công');
         setModalSua(false);
         resetForm();
         fetchPesticides();
       }
     } catch (error) {
-      console.error('❌ Lỗi cập nhật thuốc:', error);
+      console.error('Lỗi cập nhật thuốc:', error);
       toast.error(error.response?.data?.message || 'Lỗi cập nhật thuốc');
     }
   };
@@ -119,12 +119,12 @@ const PesticidePage = () => {
     try {
       const res = await apiClient.delete(`/pesticides/${id}`);
       if (res.data.success) {
-        toast.success('✅ Xóa thuốc thành công');
+        toast.success('Xóa thuốc thành công');
         fetchPesticides();
         setShowDeleteConfirm(null);
       }
     } catch (error) {
-      console.error('❌ Lỗi xóa thuốc:', error);
+      console.error('Lỗi xóa thuốc:', error);
       toast.error(error.response?.data?.message || 'Lỗi xóa thuốc');
     }
   };

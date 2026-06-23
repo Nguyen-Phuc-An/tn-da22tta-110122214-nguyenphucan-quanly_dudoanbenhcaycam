@@ -26,7 +26,7 @@ const TasksPage = () => {
       console.log('✓ Tasks loaded:', res.data.data?.length || 0);
       setTasks(res.data.data || []);
     } catch (err) {
-      console.error('❌ Error fetching tasks:', err);
+      console.error('Error fetching tasks:', err);
       toast.error('Không thể tải danh sách công việc');
     } finally {
       setLoading(false);
@@ -71,7 +71,7 @@ const TasksPage = () => {
       setTasks(tasks.filter((t) => t._id !== taskId));
       setShowDeleteConfirm(null);
     } catch (err) {
-      console.error('❌ Error deleting task:', err);
+      console.error('Error deleting task:', err);
       toast.error(err.response?.data?.message || 'Không thể xóa công việc');
     }
   };

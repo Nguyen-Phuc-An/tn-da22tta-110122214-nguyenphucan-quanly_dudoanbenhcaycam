@@ -236,6 +236,12 @@ const AdminDashboardPage = () => {
   const evaluation = mlStatus?.evaluation || null;
   const testMetrics = evaluation?.test || null;
 
+  // derive total images from mlStatus.status (per-disease counts) if available
+  const totalImagesFromMlStatus = Object.values(mlStatus?.status || {}).reduce(
+    (s, d) => s + Number(d.count || d.total || 0),
+    0
+  );
+
   const diseaseMonthOptions = useMemo(() => {
     const now = new Date();
     const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -352,7 +358,7 @@ const AdminDashboardPage = () => {
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm border-t-4 border-t-gray-900">
             <p className="text-sm font-medium text-slate-500">Tổng ảnh huấn luyện</p>
-            <p className="mt-2 text-3xl font-bold text-green-600">{formatNumber(summary.total_images)}</p>
+            <p className="mt-2 text-3xl font-bold text-green-600">{formatNumber(totalImagesFromMlStatus || summary.total_images || summary.count || 0)}</p>
           </div>
         </div>
 

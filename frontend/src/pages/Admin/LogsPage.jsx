@@ -10,15 +10,14 @@ const LogsPage = () => {
   const [gardens, setGardens] = useState([]);
   const [seasons, setSeasons] = useState([]);
   const [tasks, setTasks] = useState([]);
-  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [gardenSearch, setGardenSearch] = useState('');
   const [viewMode, setViewMode] = useState('season'); // season | user | gardens | logs
   const [selectedSeason, setSelectedSeason] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedGarden, setSelectedGarden] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [userSearchTerm, setUserSearchTerm] = useState('');
   // Read-only logs page: remove create/edit/delete UI
   const { watch } = useForm();
 
@@ -26,7 +25,7 @@ const LogsPage = () => {
     fetchLogs();
     fetchGardens();
     fetchSeasons();
-    fetchUsers();
+    // no users fetch (user list removed)
     fetchTasks();
   }, []);
 
@@ -36,7 +35,7 @@ const LogsPage = () => {
       const res = await apiClient.get('/logs/admin/all');
       setLogs(res.data.data || []);
     } catch (err) {
-      console.error('❌ Error fetching logs:', err);
+      console.error('Error fetching logs:', err);
       toast.error('Không thể tải danh sách nhật ký');
     } finally {
       setLoading(false);
@@ -60,16 +59,6 @@ const LogsPage = () => {
       console.error('Error fetching seasons:', err);
     }
   };
-
-  const fetchUsers = async () => {
-    try {
-      const res = await apiClient.get('/users');
-      setUsers(res.data.data || []);
-    } catch (err) {
-      console.error('Error fetching users:', err);
-    }
-  };
-
   const fetchTasks = async () => {
     try {
       const res = await apiClient.get('/tasks');
@@ -79,66 +68,11 @@ const LogsPage = () => {
     }
   };
 
-
-  const renderUserListView = () => {
-    const nonAdmin = users.filter((u) => String(u.vai_tro || u.role || '').toLowerCase() !== 'admin');
-    const filteredUsers = nonAdmin.filter((user) => {
-      const q = userSearchTerm.toLowerCase();
-      return (
-        (user.ho_ten || user.ten || '').toLowerCase().includes(q) ||
-        (user.email || '').toLowerCase().includes(q)
-      );
-    });
-    return (
-      <div>
-        <div className="flex items-center gap-3 mb-6">
-          <button onClick={handleBackFromUser} className="p-2 hover:bg-gray-200 rounded-lg">
-            <FaArrowLeft size={20} />
-          </button>
-          <div>
-            <h2 className="text-2xl font-bold">Người dùng - {selectedSeason?.ten_mua_vu} ({selectedSeason?.nam})</h2>
-            <p className="text-sm text-gray-500 mt-1">Chọn người dùng để xem các vườn của họ trong mùa này.</p>
-          </div>
-        </div>
-
-        <div className="mb-4 flex items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
-          <input
-            type="text"
-            value={userSearchTerm}
-            onChange={(e) => setUserSearchTerm(e.target.value)}
-            placeholder="Tìm theo tên hoặc email..."
-            className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200"
-          />
-          <span className="whitespace-nowrap text-sm text-gray-500">{filteredUsers.length} người dùng</span>
-        </div>
-
-        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Người dùng</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Email</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 bg-white">
-              {filteredUsers.map((user) => (
-                <tr key={user._id} onClick={() => handleSelectUser(user)} className="cursor-pointer hover:bg-green-50">
-                  <td className="px-6 py-4 font-semibold text-gray-900">{user.ho_ten || user.ten || 'Không tên'}</td>
-                  <td className="px-6 py-4 text-gray-600">{user.email}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    );
-  };
-
   const renderSeasonListView = () => {
     return (
       <div>
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-green-600">Xem Nhật Ký Canh Tác</h1>
+          <h2 className="text-2xl text-green-600 font-bold">Danh sách Mùa Vụ</h2>
           <p className="text-sm text-gray-500 mt-1">Chọn Mùa vụ để bắt đầu: xem theo Mùa vụ → Danh sách Vườn → Nhật ký</p>
         </div>
 
@@ -201,13 +135,22 @@ const LogsPage = () => {
     return (
       <div>
         <div className="flex items-center gap-3 mb-6">
-          <button onClick={handleBackFromGardens} className="p-2 hover:bg-green-600 rounded-lg">
+          <button onClick={handleBackFromGardens} className="p-2 hover:bg-gray-200 rounded-lg">
             <FaArrowLeft size={20} />
           </button>
           <div>
             <h2 className="text-2xl text-green-600 font-bold">Danh sách Vườn</h2>
             <p className="text-sm text-gray-500 mt-1">Chọn vườn để xem nhật ký trong mùa {selectedSeason?.ten_mua_vu}.</p>
           </div>
+        </div>
+        <div className="mb-4">
+          <input
+            type="text"
+            placeholder="Tìm vườn theo tên..."
+            value={gardenSearch}
+            onChange={(e) => setGardenSearch(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
         </div>
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
@@ -217,7 +160,9 @@ const LogsPage = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 bg-white">
-            {seasonGardens.map((garden) => (
+            {seasonGardens
+              .filter((g) => g.ten_vuon?.toLowerCase().includes(gardenSearch.toLowerCase()))
+              .map((garden) => (
               <tr key={garden._id} onClick={() => handleSelectGarden(garden)} className="cursor-pointer hover:bg-purple-50">
                 <td className="px-6 py-4 font-semibold text-gray-900">{garden.ten_vuon}</td>
                 <td className="px-6 py-4 text-gray-600">{garden.dia_chi || 'Chưa có địa chỉ'}</td>
@@ -276,7 +221,7 @@ const LogsPage = () => {
         </button>
         <div>
           <h2 className="text-2xl text-green-600 font-bold">Nhật ký - {gardens.find(g => String(g._id) === String(selectedGarden))?.ten_vuon || 'Tất cả'}</h2>
-          <p className="text-sm text-gray-500 mt-1">Danh sách nhật ký lọc theo Mùa vụ / Người dùng / Vườn đã chọn.</p>
+          <p className="text-sm text-gray-500 mt-1">Danh sách nhật ký lọc theo Mùa vụ / Vườn đã chọn.</p>
         </div>
       </div>
 
@@ -375,7 +320,9 @@ const LogsPage = () => {
     };
 
     const handleBackFromGardens = () => {
-      setViewMode('user');
+      // Return to season selection (not user list) when backing from gardens
+      setViewMode('season');
+      setSelectedSeason(null);
       setSelectedUser(null);
       setSelectedGarden(null);
     };
@@ -386,14 +333,16 @@ const LogsPage = () => {
     };
 
     const getGardensForUserInSeason = () => {
-      if (!selectedUser || !selectedSeason) return [];
-      // gardens that belong to user and are in selected season via logs
-      return gardens.filter((g) => (g.user_id?._id === selectedUser || g.user_id === selectedUser));
+      // user-based filtering removed; keep for compatibility (return empty)
+      return [];
     };
 
   return (
     <AdminLayout>
       <div className="">
+        <div className="mb-6 flex justify-between items-center">
+          <h1 className="text-3xl font-bold text-green-600">Xem Nhật Ký</h1>
+        </div>
         <div className="bg-white p-6 rounded-lg shadow-md">
           {viewMode === 'season' && renderSeasonListView()}
           {viewMode === 'user' && renderUserListView()}

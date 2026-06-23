@@ -6,6 +6,7 @@ const {
   getPredictionsByUser,
   getPredictionById,
   getAdviceForSelectedDisease,
+  getAdviceForSelectedDiseases,
   deletePrediction,
   getAllPredictions,
 } = require('../controllers/prediction.controller');
@@ -107,6 +108,11 @@ router.post('/predict', upload.single('image'), uploadPrediction);
  * Tạo tư vấn AI theo bệnh user chọn trong top 3
  */
 router.post('/advice', getAdviceForSelectedDisease);
+/**
+ * POST /api/predictions/advice-multi
+ * Tạo tư vấn AI cho nhiều bệnh được chọn (top-k) — trả về tư vấn tổng hợp
+ */
+router.post('/advice-multi', getAdviceForSelectedDiseases);
 
 /**
  * DELETE /api/predictions/:id

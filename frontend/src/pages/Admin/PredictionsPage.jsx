@@ -23,7 +23,7 @@ const PredictionsPage = () => {
       console.log('✓ Predictions loaded:', res.data.data?.length || 0);
       setPredictions(res.data.data || []);
     } catch (err) {
-      console.error('❌ Error fetching predictions:', err);
+      console.error('Error fetching predictions:', err);
       toast.error('Không thể tải danh sách dự đoán');
     } finally {
       setLoading(false);

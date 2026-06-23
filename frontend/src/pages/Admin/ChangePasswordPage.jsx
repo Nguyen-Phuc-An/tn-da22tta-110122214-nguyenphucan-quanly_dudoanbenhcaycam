@@ -88,7 +88,7 @@ const ChangePasswordPage = () => {
         navigate('/admin');
       }, 2000);
     } catch (err) {
-      console.error('❌ Error changing password:', err);
+      console.error('Error changing password:', err);
       toast.error(err.response?.data?.message || 'Đổi mật khẩu thất bại');
     } finally {
       setLoading(false);

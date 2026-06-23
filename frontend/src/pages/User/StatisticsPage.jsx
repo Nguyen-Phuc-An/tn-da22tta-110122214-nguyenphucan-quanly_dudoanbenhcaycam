@@ -100,7 +100,7 @@ const StatisticsPage = () => {
         expensesByType,
       });
     } catch (error) {
-      console.error('❌ Lỗi tải thống kê:', error);
+      console.error('Lỗi tải thống kê:', error);
       toast.error('Không thể tải thống kê');
     } finally {
       setLoading(false);
