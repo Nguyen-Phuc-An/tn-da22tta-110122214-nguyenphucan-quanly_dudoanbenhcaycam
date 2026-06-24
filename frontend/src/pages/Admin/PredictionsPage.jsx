@@ -1,8 +1,71 @@
-import React, { useState, useEffect } from 'react';
-import { FaCheck, FaTimes, FaVirus, FaChartBar, FaUser, FaLeaf, FaCalendar, FaComments } from 'react-icons/fa';
+import React, { useMemo, useState, useEffect } from 'react';
 import AdminLayout from '../../components/Admin/AdminLayout';
 import apiClient from '../../services/apiClient';
 import toast from 'react-hot-toast';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
+import { FaTimes, FaVirus } from 'react-icons/fa';
+
+const CONFIDENCE_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e'];
+
+const formatNumber = (value) => Number(value || 0).toLocaleString('vi-VN');
+
+const getMonthKeyFromDate = (dateValue) => {
+  if (!dateValue) return '';
+  const parsed = new Date(dateValue);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}`;
+};
+
+const formatMonthLabel = (monthKey) => {
+  if (!monthKey) return 'N/A';
+  const [year, month] = monthKey.split('-');
+  if (!year || !month) return monthKey;
+  return `${month}/${year}`;
+};
+
+const groupByDisease = (predictions) => {
+  const buckets = new Map();
+
+  predictions.forEach((item) => {
+    const key = item.ket_qua_benh || 'Không xác định';
+    buckets.set(key, (buckets.get(key) || 0) + 1);
+  });
+
+  return Array.from(buckets.entries())
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value);
+};
+
+const buildConfidenceBuckets = (predictions) => {
+  const buckets = [
+    { name: '0-39%', value: 0 },
+    { name: '40-59%', value: 0 },
+    { name: '60-79%', value: 0 },
+    { name: '80-100%', value: 0 },
+  ];
+
+  predictions.forEach((item) => {
+    const confidence = Number(item.do_tin_cay || 0);
+    if (confidence < 40) buckets[0].value += 1;
+    else if (confidence < 60) buckets[1].value += 1;
+    else if (confidence < 80) buckets[2].value += 1;
+    else buckets[3].value += 1;
+  });
+
+  return buckets;
+};
 
 const PredictionsPage = () => {
   const [predictions, setPredictions] = useState([]);
@@ -10,7 +73,11 @@ const PredictionsPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPrediction, setSelectedPrediction] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 10;
+  const [selectedDiseaseMonth, setSelectedDiseaseMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const ITEMS_PER_PAGE = 12;
 
   useEffect(() => {
     fetchPredictions();
@@ -35,6 +102,43 @@ const PredictionsPage = () => {
       pred.ket_qua_benh?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       pred.user_id?.ho_ten?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const diseaseMonthOptions = useMemo(() => {
+    const now = new Date();
+    const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const monthSet = new Set([currentMonthKey]);
+
+    predictions.forEach((item) => {
+      const monthKey = getMonthKeyFromDate(item.ngay_du_doan);
+      if (monthKey) monthSet.add(monthKey);
+    });
+
+    return Array.from(monthSet)
+      .sort((a, b) => b.localeCompare(a))
+      .map((value) => ({
+        value,
+        label: formatMonthLabel(value),
+      }));
+  }, [predictions]);
+
+  const diseaseDistributionForMonth = useMemo(() => {
+    const monthPredictions = predictions.filter(
+      (item) => getMonthKeyFromDate(item.ngay_du_doan) === selectedDiseaseMonth
+    );
+
+    return {
+      items: groupByDisease(monthPredictions),
+      total: monthPredictions.length,
+    };
+  }, [predictions, selectedDiseaseMonth]);
+
+  const recentTimelinePredictions = useMemo(() => {
+    return [...predictions]
+      .sort((a, b) => new Date(b.ngay_du_doan) - new Date(a.ngay_du_doan))
+      .slice(0, 6);
+  }, [predictions]);
+
+  const confidenceBuckets = useMemo(() => buildConfidenceBuckets(predictions), [predictions]);
 
   // Pagination logic
   const totalPages = Math.ceil(filteredPredictions.length / ITEMS_PER_PAGE);
@@ -64,8 +168,73 @@ const PredictionsPage = () => {
       <div>
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-green-600">Quản Lý Dự Đoán</h1>
+          <h1 className="text-3xl font-bold text-green-600">Nhật Ký Bệnh</h1>
           <p className="text-gray-600 mt-2">Xem và phân tích tất cả các dự đoán về bệnh</p>
+        </div>
+
+        <div className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-2">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-green-600">Phân bố bệnh dự đoán</h2>
+                <p className="text-sm text-slate-500">
+                  Theo tháng {formatMonthLabel(selectedDiseaseMonth)} • {formatNumber(diseaseDistributionForMonth.total)} lượt dự đoán
+                </p>
+              </div>
+              <select
+                value={selectedDiseaseMonth}
+                onChange={(event) => setSelectedDiseaseMonth(event.target.value)}
+                className="rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700"
+              >
+                {diseaseMonthOptions.map((month) => (
+                  <option key={month.value} value={month.value}>
+                    {month.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="h-80 w-full">
+              {diseaseDistributionForMonth.items.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={diseaseDistributionForMonth.items.slice(0, 8)}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis dataKey="name" tick={{ fill: '#475569', fontSize: 12 }} interval={0} angle={-15} textAnchor="end" height={60} />
+                    <YAxis tick={{ fill: '#475569', fontSize: 12 }} />
+                    <Tooltip />
+                    <Bar dataKey="value" fill="#16a34a" radius={[6, 6, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 text-sm text-slate-500">
+                  Không có dữ liệu dự đoán trong tháng {formatMonthLabel(selectedDiseaseMonth)}.
+                </div>
+              )}
+            </div>
+          </div>
+          
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-1">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-green-600">Phân bố độ tin cậy</h2>
+                <p className="text-sm text-slate-500">Tỷ lệ các mức confidence của dự đoán</p>
+              </div>
+            </div>
+
+            <div className="h-80 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={confidenceBuckets} dataKey="value" nameKey="name" innerRadius={55} outerRadius={95} paddingAngle={3}>
+                    {confidenceBuckets.map((entry, index) => (
+                      <Cell key={entry.name} fill={CONFIDENCE_COLORS[index % CONFIDENCE_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

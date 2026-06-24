@@ -341,7 +341,7 @@ const LogsPage = () => {
     <AdminLayout>
       <div className="">
         <div className="mb-6 flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-green-600">Xem Nhật Ký</h1>
+          <h1 className="text-3xl font-bold text-green-600">Xem Nhật Ký Canh Tác</h1>
         </div>
         <div className="bg-white p-6 rounded-lg shadow-md">
           {viewMode === 'season' && renderSeasonListView()}

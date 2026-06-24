@@ -518,7 +518,7 @@ const AdminDashboardPage = () => {
                 <tr>
                   <th className="px-4 py-3 text-left font-semibold">Thời gian</th>
                   <th className="px-4 py-3 text-left font-semibold">Bệnh</th>
-                  <th className="px-4 py-3 text-left font-semibold">Confidence</th>
+                  <th className="px-4 py-3 text-left font-semibold">Độ tin cậy</th>
                   <th className="px-4 py-3 text-left font-semibold">Xử lý</th>
                   <th className="px-4 py-3 text-left font-semibold">Người dùng</th>
                 </tr>
