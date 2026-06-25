@@ -57,9 +57,12 @@ from sklearn.model_selection import train_test_split
 # 1. CẤU HÌNH
 # ============================================================================
 
-# Lấy dữ liệu từ backend uploads (tự động phát hiện bệnh mới)
-BACKEND_PATH = os.path.join(os.path.dirname(__file__), "..", "backend")
-DATASET_DIR = os.path.join(BACKEND_PATH, "uploads", "training")
+SCRIPT_DIR = Path(__file__).resolve().parent
+
+# Nguồn dữ liệu chuẩn hóa cho training
+BACKEND_PATH = SCRIPT_DIR.parent / "backend"
+DATASET_SOURCE_DIR = SCRIPT_DIR / "datasets"
+TRAINING_IMAGES_DIR = BACKEND_PATH / "uploads" / "training"
 MODEL_PATH = "model.h5"
 LABEL_FILE = "disease_labels.json"
 TRAINING_REPORT_FILE = "training_report.json"
@@ -115,135 +118,201 @@ def normalize_disease_name(name):
     return slug
 
 
+CANONICAL_DISEASE_ALIASES = {
+    'black_spot': 'black_spot',
+    'dom_den': 'black_spot',
+    'benh_dom_den': 'black_spot',
+    'bệnh_đốm_đen': 'black_spot',
+    'canker': 'canker',
+    'loet': 'canker',
+    'benh_loet': 'canker',
+    'bệnh_loét': 'canker',
+    'citrus_canker_diseases_leaf_orange': 'canker',
+    'greening': 'greening',
+    'huanglongbing': 'greening',
+    'vang_la_gan_xanh': 'greening',
+    'vàng_lá_gân_xanh': 'greening',
+    'healthy': 'healthy',
+    'khoe': 'healthy',
+    'la_khoe_manh': 'healthy',
+    'lá_khỏe_mạnh': 'healthy',
+    'deficiency': 'deficiency',
+    'thieu_dinh_duong': 'deficiency',
+    'thiếu_dinh_dưỡng': 'deficiency',
+    'greasy_spot': 'greasy_spot',
+    'dom_dau': 'greasy_spot',
+    'benh_dom_dau': 'greasy_spot',
+    'bệnh_đốm_dầu': 'greasy_spot',
+    'leafminer': 'leafminer',
+    'sau_ve_bua': 'leafminer',
+    'sâu_vẽ_bùa': 'leafminer',
+    'multiple': 'multiple',
+    'hon_hop': 'multiple',
+    'hỗn_hợp': 'multiple',
+    'citrus_leaf_curl': 'citrus_leaf_curl',
+    'xoan_la': 'citrus_leaf_curl',
+    'xoăn_lá': 'citrus_leaf_curl',
+    'leaf_eating_worm': 'leaf_eating_worm',
+    'sau_an_la': 'leaf_eating_worm',
+    'sâu_ăn_lá': 'leaf_eating_worm',
+}
+
+
+def resolve_canonical_disease_key(name):
+    """Đưa mọi tên bệnh về một hệ label canonical duy nhất."""
+    if not name:
+        return ''
+
+    normalized = normalize_disease_name(name)
+    return CANONICAL_DISEASE_ALIASES.get(normalized, normalized)
+
+
+SOURCE1_LABEL_MAPPING = {
+    "Black spot": "black_spot",
+    "Canker": "canker",
+    "Greening": "greening",
+    "Healthy": "healthy",
+    "Citrus_Canker_Diseases_Leaf_Orange": "canker",
+    "Citrus_Nutrient_Deficiency_Yellow_Leaf_Orange": "deficiency",
+    "Healthy_Leaf_Orange": "healthy",
+    "Multiple_Diseases_Leaf_Orange": "multiple",
+    "Young_Healthy_Leaf_Orange": "healthy",
+    "deficiency": "deficiency",
+    "greasy spot": "greasy_spot",
+    "huanglongbing": "greening",
+    "leafminer": "leafminer",
+    "phytophthora": "multiple",
+}
+
+
 # ============================================================================
 # 3. CHUẨN HÓA DATASET (Gộp dữ liệu gốc + ảnh upload mới)
 # ============================================================================
 
-def organize_dataset():
-    """Gộp dữ liệu gốc từ datasets/ + ảnh upload mới từ backend/uploads/training/"""
-    
-    print("📂 Đang sắp xếp dataset (gộp dữ liệu gốc + upload mới)...")
-    
-    organized_dir = "organized_dataset"
-    
-    # Xóa nếu đã tồn tại
-    if os.path.exists(organized_dir):
-        shutil.rmtree(organized_dir)
-    
-    os.makedirs(organized_dir, exist_ok=True)
-    
-    # Đếm ảnh
-    image_count = {}
-    image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.webp', '.JPG', '.JPEG', '.PNG', '.BMP', '.WEBP'}
-    
-    # ========== BƯỚC 1: Copy dữ liệu gốc từ ml/datasets/ (8 class) ==========
-    print("\n  📁 Source 1: Dataset gốc (ml/datasets/)")
-    original_datasets_path = Path("datasets")
-    
-    LABEL_MAPPING = {
-        "Black spot": "black_spot",
-        "Canker": "canker",
-        "Greening": "greening",
-        "Healthy": "healthy",
-        "Citrus_Canker_Diseases_Leaf_Orange": "canker",
-        "Citrus_Nutrient_Deficiency_Yellow_Leaf_Orange": "deficiency",
-        "Healthy_Leaf_Orange": "healthy",
-        "Multiple_Diseases_Leaf_Orange": "multiple",
-        "Young_Healthy_Leaf_Orange": "healthy",
-        "deficiency": "deficiency",
-        "greasy spot": "greasy_spot",
-        "huanglongbing": "greening",
-        "leafminer": "leafminer",
-        "phytophthora": "multiple",
-    }
-    
-    if original_datasets_path.exists():
-        for dataset_dir in original_datasets_path.iterdir():
-            if not dataset_dir.is_dir():
-                continue
-            
-            for disease_dir in dataset_dir.iterdir():
-                if not disease_dir.is_dir():
-                    continue
-                
-                disease_name = disease_dir.name
-                
-                # Skip nếu chưa map
-                if disease_name not in LABEL_MAPPING:
-                    continue
-                
-                standardized_name = LABEL_MAPPING[disease_name]
-                standardized_path = os.path.join(organized_dir, standardized_name)
-                os.makedirs(standardized_path, exist_ok=True)
-                
-                # Copy ảnh
-                image_files = [f for f in disease_dir.iterdir() 
-                             if f.is_file() and f.suffix in image_extensions]
-                
-                for img_file in image_files:
-                    try:
-                        dst = os.path.join(standardized_path, img_file.name)
-                        shutil.copy2(img_file, dst)
-                        image_count[standardized_name] = image_count.get(standardized_name, 0) + 1
-                    except Exception as e:
-                        print(f"    ✗ Lỗi copy {img_file.name}: {e}")
-        
-        # In tổng từ source 1
-        source1_total = sum(image_count.values())
-        print(f"    ✓ Sao chép xong: {source1_total} ảnh")
-    else:
-        print(f"    ⚠️  Không tìm thấy datasets/ (OK nếu chỉ dùng upload mới)")
-    
-    # ========== BƯỚC 2: Copy ảnh upload mới từ backend/uploads/training/ ==========
-    print("\n  📁 Source 2: Upload mới (backend/uploads/training/)")
-    backend_training_path = Path(DATASET_DIR)
-    
-    source2_count = 0
-    if backend_training_path.exists():
-        for disease_dir in backend_training_path.iterdir():
+def _copy_images_to_class_dirs(source_root, destination_root, class_mapper):
+    """Copy ảnh từ source_root vào destination_root theo class canonical."""
+
+    image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.webp'}
+    counts = {}
+
+    source_root = Path(source_root)
+    destination_root = Path(destination_root)
+
+    if not source_root.exists():
+        return counts
+
+    for top_dir in source_root.iterdir():
+        if not top_dir.is_dir():
+            continue
+
+        for disease_dir in top_dir.iterdir():
             if not disease_dir.is_dir():
                 continue
-            
-            disease_name = disease_dir.name
-            
-            # Chuẩn hóa tên: "Sâu ăn lá" → "sau_an_la"
-            normalized_name = normalize_disease_name(disease_name)
-            
-            # Tạo thư mục chuẩn hóa
-            standardized_path = os.path.join(organized_dir, normalized_name)
-            os.makedirs(standardized_path, exist_ok=True)
-            
-            # Copy ảnh
-            image_files = [f for f in disease_dir.iterdir() 
-                         if f.is_file() and f.suffix in image_extensions]
-            
-            for img_file in image_files:
-                try:
-                    dst = os.path.join(standardized_path, img_file.name)
-                    shutil.copy2(img_file, dst)
-                    image_count[normalized_name] = image_count.get(normalized_name, 0) + 1
-                    source2_count += 1
-                except Exception as e:
-                    print(f"    ✗ Lỗi copy {img_file.name}: {e}")
-        
-        print(f"    ✓ Sao chép xong: {source2_count} ảnh upload mới")
-    else:
-        print(f"    ⚠️  Không tìm thấy {DATASET_DIR}")
-    
-    # In kết quả gộp
-    if not image_count:
-        print(f"\n❌ Không tìm thấy ảnh nào từ cả 2 nguồn!")
-        return None, {}
-    
-    print(f"\n✓ Sắp xếp xong ({organized_dir})")
-    print(f"  Phân bố ảnh:")
-    total_images = 0
-    for disease, count in sorted(image_count.items()):
+
+            class_name = class_mapper(disease_dir.name)
+            if not class_name or class_name == 'melanose':
+                continue
+
+            class_dir = destination_root / class_name
+            class_dir.mkdir(parents=True, exist_ok=True)
+
+            for img_file in disease_dir.iterdir():
+                if not img_file.is_file() or img_file.suffix.lower() not in image_extensions:
+                    continue
+
+                shutil.copy2(img_file, class_dir / img_file.name)
+                counts[class_name] = counts.get(class_name, 0) + 1
+
+    return counts
+
+
+def build_gop_dataset():
+    """Gộp ml/datasets thành gop_dataset."""
+
+    print("📂 Đang xây dựng gop_dataset từ ml/datasets...")
+
+    if GOP_DATASET_DIR.exists():
+        shutil.rmtree(GOP_DATASET_DIR)
+    GOP_DATASET_DIR.mkdir(parents=True, exist_ok=True)
+
+    counts = _copy_images_to_class_dirs(
+        DATASET_SOURCE_DIR,
+        GOP_DATASET_DIR,
+        lambda name: SOURCE1_LABEL_MAPPING.get(name, resolve_canonical_disease_key(name)),
+    )
+
+    total = sum(counts.values())
+    print(f"  ✓ gop_dataset: {total} ảnh")
+    for disease, count in sorted(counts.items()):
         print(f"    - {disease}: {count} ảnh")
-        total_images += count
-    print(f"  📊 Tổng: {total_images} ảnh (gốc: {sum(image_count.values()) - source2_count}, upload: {source2_count})\n")
-    
-    return organized_dir, image_count
+    print()
+
+    return counts
+
+
+def build_organized_dataset():
+    """Gộp gop_dataset với backend/uploads/training để tạo organized_dataset."""
+
+    print("📂 Đang xây dựng organized_dataset từ gop_dataset + training uploads...")
+
+    if ORGANIZED_DATASET_DIR.exists():
+        shutil.rmtree(ORGANIZED_DATASET_DIR)
+    ORGANIZED_DATASET_DIR.mkdir(parents=True, exist_ok=True)
+
+    counts = {}
+    source2_count = 0
+
+    if GOP_DATASET_DIR.exists():
+        for disease_dir in GOP_DATASET_DIR.iterdir():
+            if not disease_dir.is_dir():
+                continue
+
+            class_dir = ORGANIZED_DATASET_DIR / disease_dir.name
+            class_dir.mkdir(parents=True, exist_ok=True)
+
+            for img_file in disease_dir.iterdir():
+                if img_file.is_file() and img_file.suffix.lower() in {'.jpg', '.jpeg', '.png', '.bmp', '.webp'}:
+                    shutil.copy2(img_file, class_dir / img_file.name)
+                    counts[disease_dir.name] = counts.get(disease_dir.name, 0) + 1
+
+    if TRAINING_IMAGES_DIR.exists():
+        for disease_dir in TRAINING_IMAGES_DIR.iterdir():
+            if not disease_dir.is_dir():
+                continue
+
+            class_name = resolve_canonical_disease_key(disease_dir.name)
+            if not class_name or class_name == 'melanose':
+                continue
+
+            class_dir = ORGANIZED_DATASET_DIR / class_name
+            class_dir.mkdir(parents=True, exist_ok=True)
+
+            for img_file in disease_dir.iterdir():
+                if img_file.is_file() and img_file.suffix.lower() in {'.jpg', '.jpeg', '.png', '.bmp', '.webp'}:
+                    shutil.copy2(img_file, class_dir / img_file.name)
+                    counts[class_name] = counts.get(class_name, 0) + 1
+                    source2_count += 1
+
+    total = sum(counts.values())
+    print(f"  ✓ organized_dataset: {total} ảnh (gốc: {total - source2_count}, upload: {source2_count})")
+    for disease, count in sorted(counts.items()):
+        print(f"    - {disease}: {count} ảnh")
+    print()
+
+    return counts
+
+
+def organize_dataset():
+    """Tạo gop_dataset rồi gộp với upload để ra organized_dataset."""
+
+    build_gop_dataset()
+    organized_dir = build_organized_dataset()
+
+    if not organized_dir:
+        print("\n❌ Không tìm thấy ảnh nào từ cả 2 nguồn!")
+        return None, {}
+
+    return str(ORGANIZED_DATASET_DIR), organized_dir
 
 
 def split_dataset(organized_dir):
@@ -251,7 +320,7 @@ def split_dataset(organized_dir):
 
     print("📂 Đang tách dataset thành train/val/test (80/10/10)...")
 
-    split_root = "split_dataset"
+    split_root = str(SCRIPT_DIR / "split_dataset")
     if os.path.exists(split_root):
         shutil.rmtree(split_root)
 

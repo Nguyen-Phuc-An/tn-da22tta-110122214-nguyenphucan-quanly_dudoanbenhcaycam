@@ -5,6 +5,7 @@ const Disease = require('../models/Disease');
 
 // ===== CONSTANTS =====
 const TRAINING_IMAGES_DIR = path.resolve(__dirname, '../../uploads/training');
+const GOP_DATASET_DIR = path.resolve(__dirname, '../../../ml/gop_dataset');
 const ORGANIZED_DATASET_DIR = path.resolve(__dirname, '../../../ml/organized_dataset');
 const MODEL_PATH = path.resolve(__dirname, '../../../ml/model.h5');
 const TRAINING_REPORT_PATH = path.resolve(__dirname, '../../../ml/training_report.json');
@@ -84,6 +85,16 @@ const normalizeDiseaseKey = (value) => {
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '')
     .replace(/_+/g, '_');
+};
+
+const countImagesInDiseaseDir = (baseDir, diseaseKey) => {
+  const diseasePath = path.join(baseDir, diseaseKey);
+
+  if (!fs.existsSync(diseasePath) || !fs.statSync(diseasePath).isDirectory()) {
+    return 0;
+  }
+
+  return fs.readdirSync(diseasePath).filter((file) => /\.(jpg|png|jpeg)$/i.test(file)).length;
 };
 
 const mergeEvaluationMetrics = (progressMetrics, diskMetrics) => {
@@ -179,6 +190,8 @@ const getTrainingStatus = async (req, res) => {
 
     console.log('🔍 DEBUG getTrainingStatus:');
     console.log(`  __dirname: ${__dirname}`);
+    console.log(`  GOP_DATASET_DIR: ${GOP_DATASET_DIR}`);
+    console.log(`  Exists: ${fs.existsSync(GOP_DATASET_DIR)}`);
     console.log(`  ORGANIZED_DATASET_DIR: ${ORGANIZED_DATASET_DIR}`);
     console.log(`  Exists: ${fs.existsSync(ORGANIZED_DATASET_DIR)}`);
     console.log(`  TRAINING_IMAGES_DIR: ${TRAINING_IMAGES_DIR}`);
@@ -198,102 +211,56 @@ const getTrainingStatus = async (req, res) => {
       return accumulator;
     }, {});
 
-    // Get original diseases used by ML training
-    const original_diseases = [
-      'black_spot',
-      'canker',
-      'deficiency',
-      'greasy_spot',
-      'greening',
-      'healthy',
-      'leafminer',
-      'multiple',
-    ].filter((disease) => !EXCLUDED_DISEASES.has(disease));
+    const diseaseKeys = new Set();
 
-    // Include diseases created in the DB so the upload page can show newly added diseases too
-    const diseaseKeysFromDB = diseaseDocs
-      .map((diseaseDoc) => {
-        const uploadKey = normalizeDiseaseKey(diseaseDoc.ten_benh_en || diseaseDoc.ten_benh);
-        return uploadKey;
-      })
-      .filter(Boolean)
-      .filter((disease) => !EXCLUDED_DISEASES.has(disease));
+    [GOP_DATASET_DIR, ORGANIZED_DATASET_DIR, TRAINING_IMAGES_DIR].forEach((baseDir) => {
+      if (!fs.existsSync(baseDir)) return;
 
-    const diseaseKeys = Array.from(new Set([...original_diseases, ...diseaseKeysFromDB]));
+      fs.readdirSync(baseDir).forEach((entry) => {
+        const entryPath = path.join(baseDir, entry);
+        if (fs.statSync(entryPath).isDirectory() && !EXCLUDED_DISEASES.has(entry)) {
+          diseaseKeys.add(entry);
+        }
+      });
+    });
+
+    diseaseDocs.forEach((diseaseDoc) => {
+      const uploadKey = normalizeDiseaseKey(diseaseDoc.ten_benh_en || diseaseDoc.ten_benh);
+      if (uploadKey && !EXCLUDED_DISEASES.has(uploadKey)) {
+        diseaseKeys.add(uploadKey);
+      }
+    });
 
     const status = {};
     let total_original = 0;
+    let total_organized = 0;
     let total_training = 0;
 
-    // Count original dataset
-    diseaseKeys.forEach((disease) => {
-      const disease_path = path.join(ORGANIZED_DATASET_DIR, disease);
-      const count = fs.existsSync(disease_path)
-        ? fs.readdirSync(disease_path).filter((f) => /\.(jpg|png|jpeg)$/i.test(f)).length
-        : 0;
+    Array.from(diseaseKeys).sort().forEach((disease) => {
+      const originalCount = countImagesInDiseaseDir(GOP_DATASET_DIR, disease);
+      const organizedCount = countImagesInDiseaseDir(ORGANIZED_DATASET_DIR, disease);
+      const trainingCount = countImagesInDiseaseDir(TRAINING_IMAGES_DIR, disease);
+
+      const diseaseMeta = diseaseMetaMap[disease] || {};
+
       status[disease] = {
-        count,
-        source: original_diseases.includes(disease) ? 'original' : 'new',
-        new_images: 0,
+        count: organizedCount,
+        organized_count: organizedCount,
+        original_count: originalCount,
+        new_images: trainingCount,
+        source_total: originalCount + trainingCount,
+        total: organizedCount,
+        source: originalCount > 0 ? 'original' : 'new',
         upload_key: disease,
-        ...(diseaseMetaMap[disease] || {}),
+        ...(diseaseMeta || {}),
       };
-      total_original += count;
-      console.log(`  ${disease}: ${count} ảnh từ ${disease_path}`);
+
+      total_original += originalCount;
+      total_organized += organizedCount;
+      total_training += trainingCount;
+
+      console.log(`  ${disease}: original=${originalCount}, organized=${organizedCount}, new=${trainingCount}`);
     });
-
-    // Count training uploads
-    if (fs.existsSync(TRAINING_IMAGES_DIR)) {
-      fs.readdirSync(TRAINING_IMAGES_DIR).forEach((disease) => {
-        if (EXCLUDED_DISEASES.has(disease)) {
-          return;
-        }
-
-        const training_path = path.join(TRAINING_IMAGES_DIR, disease);
-        if (fs.statSync(training_path).isDirectory()) {
-          const count = fs.readdirSync(training_path)
-            .filter((f) => /\.(jpg|png|jpeg)$/i.test(f)).length;
-
-          if (status[disease]) {
-            status[disease].new_images = count;
-            status[disease].total = status[disease].count + count;
-          } else {
-            // Bệnh mới
-            status[disease] = {
-              count: 0,
-              source: 'new',
-              new_images: count,
-              total: count,
-              upload_key: normalizeDiseaseKey(disease),
-              ...(diseaseMetaMap[disease] || {}),
-            };
-          }
-          total_training += count;
-        }
-      });
-    }
-
-    // Merge any duplicate entries that resolve to the same upload_key
-    const mergedStatus = Object.values(status).reduce((accumulator, item) => {
-      const key = item.upload_key || normalizeDiseaseKey(item.ten_benh_en || item.ten_benh);
-      if (!key) return accumulator;
-
-      if (!accumulator[key]) {
-        accumulator[key] = { ...item, upload_key: key };
-        return accumulator;
-      }
-
-      accumulator[key] = {
-        ...accumulator[key],
-        ten_benh: accumulator[key].ten_benh || item.ten_benh,
-        ten_benh_en: accumulator[key].ten_benh_en || item.ten_benh_en,
-        count: Math.max(Number(accumulator[key].count || 0), Number(item.count || 0)),
-        new_images: Math.max(Number(accumulator[key].new_images || 0), Number(item.new_images || 0)),
-        total: Math.max(Number(accumulator[key].total || 0), Number(item.total || 0)),
-      };
-
-      return accumulator;
-    }, {});
 
     const diskReport = readTrainingReportFromDisk();
 
@@ -303,12 +270,16 @@ const getTrainingStatus = async (req, res) => {
     res.json({
       success: true,
       data: {
-          status: mergedStatus,
+        status,
         summary: {
-          total_diseases: Object.keys(mergedStatus).length,
+          total_diseases: Object.keys(status).length,
           original_images: total_original,
+          organized_images: total_organized,
           training_images: total_training,
-          total_images: total_original + total_training,
+          total_images: total_organized,
+          train_images: Math.round(total_organized * 0.8),
+          val_images: Math.round(total_organized * 0.1),
+          test_images: total_organized - Math.round(total_organized * 0.8) - Math.round(total_organized * 0.1),
         },
         evaluation,
         trainingResults,

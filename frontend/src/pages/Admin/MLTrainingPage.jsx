@@ -226,6 +226,14 @@ const MLTrainingPage = () => {
   const testMetrics = evaluation?.test || null;
   const trainingResults = trainingStatus.trainingResults || progress.trainingResults || null;
 
+  const totalDiseaseCount = summary.total_diseases || Object.keys(diseasesData).length || 0;
+  const totalOriginalImages = summary.original_images || 0;
+  const totalOrganizedImages = summary.organized_images || summary.total_images || 0;
+  const totalTrainingImages = summary.training_images || 0;
+  const trainImages = summary.train_images ?? Math.round(totalOrganizedImages * 0.8);
+  const valImages = summary.val_images ?? Math.round(totalOrganizedImages * 0.1);
+  const testImages = summary.test_images ?? (totalOrganizedImages - trainImages - valImages);
+
   // Derived totals from diseasesData
   const totalImagesFromDiseases = Object.values(diseasesData || {}).reduce(
     (sum, d) => sum + Number(d.count || d.total || 0),
@@ -324,7 +332,7 @@ const MLTrainingPage = () => {
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400"
             >
               <FaCog className={retraining ? 'animate-spin' : ''} />
-              {retraining ? 'Đang Đào Tạo...' : 'Đào Tạo Lại'}
+              {retraining ? 'Đang Huấn Luyện Lại...' : 'Huấn Luyện Lại'}
             </button>
           </div>
         </div>
@@ -359,18 +367,22 @@ const MLTrainingPage = () => {
 
         {/* Summary Card (show only New and Total per request) */}
         <div className="bg-gray-900 text-white rounded-lg p-6 shadow">
-          <div className="grid grid-cols-3 gap-4 text-center">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
             <div>
               <p className="text-sm opacity-80">Số Bệnh</p>
-              <p className="text-3xl font-bold">{summary.total_diseases || Object.keys(diseasesData).length || 0}</p>
+              <p className="text-3xl font-bold">{totalDiseaseCount}</p>
+            </div>
+            <div>
+              <p className="text-sm opacity-80">Ảnh Gốc</p>
+              <p className="text-3xl font-bold">{totalOriginalImages}</p>
             </div>
             <div>
               <p className="text-sm opacity-80">Ảnh Mới</p>
-              <p className="text-3xl font-bold">{totalNewImagesFromDiseases || summary.training_images || summary.new_images || 0}</p>
+              <p className="text-3xl font-bold">{totalTrainingImages || totalNewImagesFromDiseases || summary.new_images || 0}</p>
             </div>
             <div>
               <p className="text-sm opacity-80">Tổng</p>
-              <p className="text-3xl font-bold">{totalImagesFromDiseases || summary.total_images || summary.count || 0}</p>
+              <p className="text-3xl font-bold">{totalOrganizedImages || totalImagesFromDiseases || summary.count || 0}</p>
             </div>
           </div>
         </div>
@@ -382,45 +394,19 @@ const MLTrainingPage = () => {
             {/* Train */}
             <div className="flex-1">
               <p className="text-sm text-gray-500">Tập Huấn Luyện (80%)</p>
-              <p className="font-bold text-gray-900">
-                {(() => {
-                  const totals = Object.values(diseasesData || {}).reduce(
-                    (s, d) => s + Number(d.count || d.total || 0),
-                    0
-                  );
-                  return Math.round(totals * 0.8);
-                })()}
-              </p>
+              <p className="font-bold text-gray-900">{trainImages}</p>
             </div>
 
             {/* Validation */}
             <div className="flex-1">
               <p className="text-sm text-gray-500">Tập Xác Thực (10%)</p>
-              <p className="font-bold text-gray-900">
-                {(() => {
-                  const totals = Object.values(diseasesData || {}).reduce(
-                    (s, d) => s + Number(d.count || d.total || 0),
-                    0
-                  );
-                  return Math.round(totals * 0.1);
-                })()}
-              </p>
+              <p className="font-bold text-gray-900">{valImages}</p>
             </div>
 
             {/* Test */}
             <div className="flex-1">
               <p className="text-sm text-gray-500">Tập Test (10%)</p>
-              <p className="font-bold text-gray-900">
-                {(() => {
-                  const totals = Object.values(diseasesData || {}).reduce(
-                    (s, d) => s + Number(d.count || d.total || 0),
-                    0
-                  );
-                  const train = Math.round(totals * 0.8);
-                  const val = Math.round(totals * 0.1);
-                  return totals - train - val;
-                })()}
-              </p>
+              <p className="font-bold text-gray-900">{testImages}</p>
             </div>
 
           </div>
@@ -651,20 +637,24 @@ const MLTrainingPage = () => {
                     <p className="text-sm font-medium text-green-600 mt-1">{data.upload_key || disease}</p>
                     <p className="text-xs text-gray-500 mt-1">
                       {data.source === 'original'
-                        ? 'Bệnh gốc (organized_dataset)'
-                        : 'Bệnh mới'}
+                        ? 'Có ảnh gốc trong gop_dataset'
+                        : 'Chỉ có ảnh mới trong uploads/training'}
                     </p>
                   </div>
 
-                  {/* Stats: show only New and Total. Total = data.count, New = data.new_images */}
-                  <div className="grid grid-cols-2 gap-2 text-center bg-gray-50 p-3 rounded">
+                  {/* Stats */}
+                  <div className="grid grid-cols-3 gap-2 text-center bg-gray-50 p-3 rounded">
                     <div>
-                      <p className="text-xs text-gray-600">Ảnh Mới</p>
+                      <p className="text-xs text-gray-600">Ảnh gốc</p>
+                      <p className="font-bold text-lg text-gray-900">{data.original_count || 0}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-600">Ảnh mới</p>
                       <p className="font-bold text-lg text-gray-900">{data.new_images || 0}</p>
                     </div>
                     <div>
                       <p className="text-xs text-gray-600">Tổng</p>
-                      <p className="font-bold text-lg">{data.count || (data.total || 0)}</p>
+                      <p className="font-bold text-lg text-gray-900">{data.source_total ?? ((data.original_count || 0) + (data.new_images || 0))}</p>
                     </div>
                   </div>
 
@@ -733,23 +723,9 @@ const MLTrainingPage = () => {
                     )}
                   </div>
 
-                  {/* Progress Bar */}
-                  {data.total > 0 && (
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div
-                        className="bg-gray-900 h-2 rounded-full transition-all"
-                        style={{
-                          width: `${Math.min(
-                            ((data.total || 0) / 500) * 100,
-                            100
-                          )}%`,
-                        }}
-                      />
-                    </div>
-                  )}
                   <p className="text-xs text-gray-500 text-center">
-                    {data.total > 0
-                      ? `✓ Đã có ${data.total} ảnh, có thể tiếp tục upload thêm bất kỳ lúc nào`
+                    {(data.organized_count || data.count || data.total || 0) > 0
+                      ? `✓ Đã có ${(data.organized_count || data.count || data.total || 0)} ảnh trong organized_dataset`
                       : 'Chưa có ảnh nào cho bệnh này'}
                   </p>
                 </div>
@@ -780,7 +756,7 @@ const MLTrainingPage = () => {
       {retraining && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full mx-4">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">🔄 Đào Tạo Model</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Huấn luyện lại mô hình</h2>
 
             {/* Progress Bar */}
             <div className="mb-6">

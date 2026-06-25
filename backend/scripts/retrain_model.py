@@ -31,16 +31,88 @@ if len(sys.argv) < 4:
     print("Usage: python retrain_model.py <organized_dataset_dir> <training_images_dir> <output_model_path>")
     sys.exit(1)
 
-ORGANIZED_DATASET_DIR = sys.argv[1]
-TRAINING_IMAGES_DIR = sys.argv[2]
-OUTPUT_MODEL_PATH = sys.argv[3]
+ORGANIZED_DATASET_DIR = Path(sys.argv[1]).resolve()
+TRAINING_IMAGES_DIR = Path(sys.argv[2]).resolve()
+OUTPUT_MODEL_PATH = Path(sys.argv[3]).resolve()
+ML_DIR = ORGANIZED_DATASET_DIR.parent
+DATASET_SOURCE_DIR = ML_DIR / 'datasets'
+GOP_DATASET_DIR = ML_DIR / 'gop_dataset'
+SPLIT_DATASET_DIR = ML_DIR / 'split_dataset'
 
 # ===== CONSTANTS =====
 IMG_SIZE = 224
 BATCH_SIZE = 32
 EPOCHS = 5  # Retrain = fewer epochs (faster)
-TEMP_COMBINED_DIR = "combined_dataset_temp"
 EXCLUDED_CLASSES = {"melanose"}
+
+
+def normalize_disease_name(name):
+    """Chuẩn hóa tên bệnh thành slug không dấu."""
+
+    import unicodedata
+
+    nfd = unicodedata.normalize('NFD', name)
+    without_accents = ''.join(c for c in nfd if unicodedata.category(c) != 'Mn')
+    slug = without_accents.lower().strip().replace(' ', '_').replace('-', '_')
+    slug = ''.join(c for c in slug if c.isalnum() or c == '_')
+    return slug
+
+
+SOURCE1_LABEL_MAPPING = {
+    'Black spot': 'black_spot',
+    'Canker': 'canker',
+    'Greening': 'greening',
+    'Healthy': 'healthy',
+    'Citrus_Canker_Diseases_Leaf_Orange': 'canker',
+    'Citrus_Nutrient_Deficiency_Yellow_Leaf_Orange': 'deficiency',
+    'Healthy_Leaf_Orange': 'healthy',
+    'Multiple_Diseases_Leaf_Orange': 'multiple',
+    'Young_Healthy_Leaf_Orange': 'healthy',
+    'deficiency': 'deficiency',
+    'greasy spot': 'greasy_spot',
+    'huanglongbing': 'greening',
+    'leafminer': 'leafminer',
+    'phytophthora': 'multiple',
+}
+
+
+def resolve_canonical_disease_key(name):
+    """Đưa tên folder bệnh về class canonical dùng chung."""
+
+    if not name:
+        return ''
+
+    normalized = normalize_disease_name(name)
+    alias_map = {
+        'black_spot': 'black_spot',
+        'dom_den': 'black_spot',
+        'benh_dom_den': 'black_spot',
+        'canker': 'canker',
+        'loet': 'canker',
+        'benh_loet': 'canker',
+        'citrus_canker_diseases_leaf_orange': 'canker',
+        'greening': 'greening',
+        'huanglongbing': 'greening',
+        'vang_la_gan_xanh': 'greening',
+        'healthy': 'healthy',
+        'khoe': 'healthy',
+        'la_khoe_manh': 'healthy',
+        'deficiency': 'deficiency',
+        'thieu_dinh_duong': 'deficiency',
+        'greasy_spot': 'greasy_spot',
+        'dom_dau': 'greasy_spot',
+        'benh_dom_dau': 'greasy_spot',
+        'leafminer': 'leafminer',
+        'sau_ve_bua': 'leafminer',
+        'multiple': 'multiple',
+        'hon_hop': 'multiple',
+        'citrus_leaf_curl': 'citrus_leaf_curl',
+        'xoan_la': 'citrus_leaf_curl',
+        'leaf_eating_worm': 'leaf_eating_worm',
+        'sau_an_la': 'leaf_eating_worm',
+    }
+
+    return alias_map.get(normalized, normalized)
 
 
 def crop_to_leaf_region(image_array):
@@ -96,77 +168,130 @@ print(f"   Directory exists: {os.path.exists(os.path.dirname(OUTPUT_MODEL_PATH))
 print()
 
 
+
 # ===== COMBINE DATASETS =====
-def combine_datasets():
-    """Kết hợp organized_dataset + training uploads"""
-    
-    print("[COMBINE] Dang ket hop datasets...")
-    
-    # Xóa folder cũ nếu tồn tại
-    if os.path.exists(TEMP_COMBINED_DIR):
-        shutil.rmtree(TEMP_COMBINED_DIR)
-    
-    os.makedirs(TEMP_COMBINED_DIR, exist_ok=True)
-    
-    image_count = {}
-    
-    # 1. Copy từ organized_dataset (9 bệnh cũ)
-    print("  [COPY] Copying original dataset...")
-    if os.path.exists(ORGANIZED_DATASET_DIR):
-        for disease_dir in os.listdir(ORGANIZED_DATASET_DIR):
-            if disease_dir in EXCLUDED_CLASSES:
+def _copy_images_to_class_dirs(source_root, destination_root, class_mapper):
+    """Copy toàn bộ ảnh từ source_root vào destination_root theo class canonical."""
+
+    image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.webp'}
+    counts = {}
+
+    source_root = Path(source_root)
+    destination_root = Path(destination_root)
+
+    if not source_root.exists():
+        return counts
+
+    for top_dir in source_root.iterdir():
+        if not top_dir.is_dir():
+            continue
+
+        for disease_dir in top_dir.iterdir():
+            if not disease_dir.is_dir():
                 continue
 
-            disease_path = os.path.join(ORGANIZED_DATASET_DIR, disease_dir)
-            if not os.path.isdir(disease_path):
-                continue
-            
-            combined_disease_path = os.path.join(TEMP_COMBINED_DIR, disease_dir)
-            os.makedirs(combined_disease_path, exist_ok=True)
-            
-            # Copy ảnh
-            for img_file in os.listdir(disease_path):
-                if img_file.lower().endswith(('.jpg', '.png', '.jpeg')):
-                    src = os.path.join(disease_path, img_file)
-                    dst = os.path.join(combined_disease_path, img_file)
-                    shutil.copy2(src, dst)
-                    image_count[disease_dir] = image_count.get(disease_dir, 0) + 1
-    
-    # 2. Copy từ training uploads (ảnh bổ sung + bệnh mới)
-    print("  [COPY] Copying training images...")
-    if os.path.exists(TRAINING_IMAGES_DIR):
-        for disease_dir in os.listdir(TRAINING_IMAGES_DIR):
-            if disease_dir in EXCLUDED_CLASSES:
+            class_name = class_mapper(disease_dir.name)
+            if not class_name or class_name in EXCLUDED_CLASSES:
                 continue
 
-            disease_path = os.path.join(TRAINING_IMAGES_DIR, disease_dir)
-            if not os.path.isdir(disease_path):
-                continue
-            
-            combined_disease_path = os.path.join(TEMP_COMBINED_DIR, disease_dir)
-            os.makedirs(combined_disease_path, exist_ok=True)
-            
-            # Copy ảnh
-            for img_file in os.listdir(disease_path):
-                if img_file.lower().endswith(('.jpg', '.png', '.jpeg')):
-                    src = os.path.join(disease_path, img_file)
-                    dst = os.path.join(combined_disease_path, img_file)
-                    shutil.copy2(src, dst)
-                    image_count[disease_dir] = image_count.get(disease_dir, 0) + 1
-    
-    # Print summary
-    print(f"[OK] Ket hop xong ({TEMP_COMBINED_DIR})")
-    print("PROGRESS:25:Combine datasets ok")
-    print(f"  [STATS] Phan bo anh:")
-    total_images = 0
-    for disease, count in sorted(image_count.items()):
-        print(f"    - {disease}: {count} ảnh")
-        total_images += count
-    print(f"  [STATS] Tong: {total_images} anh")
-    print(f"  [STATS] So benh: {len(image_count)}")
+            class_dir = destination_root / class_name
+            class_dir.mkdir(parents=True, exist_ok=True)
+
+            for img_file in disease_dir.iterdir():
+                if not img_file.is_file() or img_file.suffix.lower() not in image_extensions:
+                    continue
+
+                shutil.copy2(img_file, class_dir / img_file.name)
+                counts[class_name] = counts.get(class_name, 0) + 1
+
+    return counts
+
+
+def build_gop_dataset():
+    """Gộp ml/datasets thành gop_dataset."""
+
+    print("[BUILD] Building gop_dataset from ml/datasets...")
+
+    if GOP_DATASET_DIR.exists():
+        shutil.rmtree(GOP_DATASET_DIR)
+    GOP_DATASET_DIR.mkdir(parents=True, exist_ok=True)
+
+    counts = _copy_images_to_class_dirs(
+        DATASET_SOURCE_DIR,
+        GOP_DATASET_DIR,
+        lambda name: SOURCE1_LABEL_MAPPING.get(name, resolve_canonical_disease_key(name)),
+    )
+
+    total = sum(counts.values())
+    print(f"[OK] gop_dataset ready: {GOP_DATASET_DIR}")
+    for disease, count in sorted(counts.items()):
+        print(f"  - {disease}: {count} ảnh")
+    print(f"  [STATS] Tổng gop_dataset: {total} ảnh")
     print()
-    
-    return TEMP_COMBINED_DIR, image_count
+
+    return counts
+
+
+def build_organized_dataset():
+    """Gộp gop_dataset với backend/uploads/training để tạo organized_dataset."""
+
+    print("[BUILD] Building organized_dataset from gop_dataset + training uploads...")
+
+    if ORGANIZED_DATASET_DIR.exists():
+        shutil.rmtree(ORGANIZED_DATASET_DIR)
+    ORGANIZED_DATASET_DIR.mkdir(parents=True, exist_ok=True)
+
+    counts = {}
+
+    if GOP_DATASET_DIR.exists():
+        for disease_dir in GOP_DATASET_DIR.iterdir():
+            if not disease_dir.is_dir():
+                continue
+
+            class_dir = ORGANIZED_DATASET_DIR / disease_dir.name
+            class_dir.mkdir(parents=True, exist_ok=True)
+
+            for img_file in disease_dir.iterdir():
+                if img_file.is_file() and img_file.suffix.lower() in {'.jpg', '.jpeg', '.png', '.bmp', '.webp'}:
+                    shutil.copy2(img_file, class_dir / img_file.name)
+                    counts[disease_dir.name] = counts.get(disease_dir.name, 0) + 1
+
+    if TRAINING_IMAGES_DIR.exists():
+        for disease_dir in TRAINING_IMAGES_DIR.iterdir():
+            if not disease_dir.is_dir():
+                continue
+
+            class_name = resolve_canonical_disease_key(disease_dir.name)
+            if not class_name or class_name in EXCLUDED_CLASSES:
+                continue
+
+            class_dir = ORGANIZED_DATASET_DIR / class_name
+            class_dir.mkdir(parents=True, exist_ok=True)
+
+            for img_file in disease_dir.iterdir():
+                if img_file.is_file() and img_file.suffix.lower() in {'.jpg', '.jpeg', '.png', '.bmp', '.webp'}:
+                    shutil.copy2(img_file, class_dir / img_file.name)
+                    counts[class_name] = counts.get(class_name, 0) + 1
+
+    total = sum(counts.values())
+    print(f"[OK] organized_dataset ready: {ORGANIZED_DATASET_DIR}")
+    for disease, count in sorted(counts.items()):
+        print(f"  - {disease}: {count} ảnh")
+    print(f"  [STATS] Tổng organized_dataset: {total} ảnh")
+    print()
+
+    return counts
+
+
+def combine_datasets():
+    """Tạo gop_dataset từ ml/datasets rồi gộp với uploads vào organized_dataset."""
+
+    print("[COMBINE] Starting 2-stage dataset build...")
+    build_gop_dataset()
+    image_count = build_organized_dataset()
+    print("PROGRESS:25:Combine datasets ok")
+
+    return str(ORGANIZED_DATASET_DIR), image_count
 
 
 def sync_uploads_to_organized(organized_dir, training_dir):
@@ -601,7 +726,7 @@ def save_model_and_labels(model, train_gen, output_path):
     class_indices = train_gen.class_indices
     label_mapping = {idx: name for name, idx in class_indices.items()}
     
-    labels_path = output_path.replace('.h5', '_labels.json')
+    labels_path = Path(output_path).with_name(Path(output_path).stem + '_labels.json')
     with open(labels_path, 'w', encoding='utf-8') as f:
         json.dump(label_mapping, f, indent=2, ensure_ascii=False)
     
@@ -616,9 +741,6 @@ def main():
     combined_dir = None
 
     try:
-        # Sync training uploads into organized_dataset so ml/organized_dataset stays in sync with admin uploads
-        sync_uploads_to_organized(ORGANIZED_DATASET_DIR, TRAINING_IMAGES_DIR)
-
         # 1. Combine datasets
         combined_dir, image_count = combine_datasets()
 
@@ -652,10 +774,6 @@ def main():
         # 5. Save
         save_model_and_labels(model, train_gen, OUTPUT_MODEL_PATH)
         
-        # Cleanup
-        if os.path.exists(combined_dir):
-            shutil.rmtree(combined_dir)
-        
         print("=" * 70)
         print("PROGRESS:100:Hoan thanh")
         print("[OK] RETRAIN COMPLETED SUCCESSFULLY")
@@ -663,9 +781,6 @@ def main():
         
     except Exception as e:
         print(f"[ERROR] {str(e)}")
-        # Cleanup on error
-        if combined_dir and os.path.exists(combined_dir):
-            shutil.rmtree(combined_dir)
         sys.exit(1)
 
 

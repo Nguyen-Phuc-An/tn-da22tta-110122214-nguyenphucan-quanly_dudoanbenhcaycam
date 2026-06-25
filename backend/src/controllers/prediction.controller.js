@@ -32,6 +32,57 @@ const formatPesticideNames = (items = []) =>
     .map((item) => item?.ten_thuoc)
     .filter(Boolean);
 
+const normalizeDiseaseKey = (value) => {
+  if (!value) return '';
+
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .replace(/_+/g, '_');
+};
+
+const DISEASE_ALIASES = {
+  leaf_eating_worm: 'leaf_eating_worm',
+  sau_an_la: 'leaf_eating_worm',
+  citrus_leaf_curl: 'citrus_leaf_curl',
+  xoan_la: 'citrus_leaf_curl',
+  greasy_spot: 'greasy_spot',
+  dom_dau: 'greasy_spot',
+  leafminer: 'leafminer',
+  sau_ve_bua: 'leafminer',
+  black_spot: 'black_spot',
+  dom_den: 'black_spot',
+  canker: 'canker',
+  loet: 'canker',
+  greening: 'greening',
+  huanglongbing: 'greening',
+  deficiency: 'deficiency',
+  thieu_dinh_duong: 'deficiency',
+  healthy: 'healthy',
+  khoe: 'healthy',
+  multiple: 'multiple',
+  hon_hop: 'multiple',
+};
+
+const resolveDiseaseKey = (value) => DISEASE_ALIASES[normalizeDiseaseKey(value)] || normalizeDiseaseKey(value);
+
+const buildDiseaseMap = (diseases = []) => {
+  const diseaseMap = {};
+
+  diseases.forEach((d) => {
+    diseaseMap[d.ten_benh_en] = d;
+    diseaseMap[resolveDiseaseKey(d.ten_benh_en)] = d;
+    diseaseMap[d.ten_benh] = d;
+    diseaseMap[resolveDiseaseKey(d.ten_benh)] = d;
+  });
+
+  return diseaseMap;
+};
+
 /**
  * Tạo tư vấn AI bằng Gemini (với nhiều bệnh)
  */
@@ -45,7 +96,7 @@ const generateAIAdvice = async (predictions, diseaseMap) => {
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const diseasesList = predictions.map((p, i) => {
-      const d = diseaseMap[p.label];
+      const d = diseaseMap[resolveDiseaseKey(p.label)] || diseaseMap[normalizeDiseaseKey(p.label)] || diseaseMap[p.label];
       if (!d) return "";
 
       const allowedFertilizers = formatFertilizerNames(d.goi_y_phan_bon);
@@ -286,9 +337,7 @@ const uploadPrediction = async (req, res) => {
 
     // ✓ 3.2 Lấy danh sách bệnh từ DB dùng find (không findOne)
     // ===== CẬP NHẬT: Populate fertilizer & pesticide suggestions =====
-    const diseases = await Disease.find({
-      ten_benh_en: { $in: predictions.map(p => p.label) }
-    })
+    const diseases = await Disease.find({})
       .populate('goi_y_phan_bon', 'ten_phan_bon thanh_phan cong_dung')
       .populate('goi_y_thuoc', 'ten_thuoc loai hoat_chat cach_su_dung muc_do_doc_hai');
 
@@ -309,6 +358,9 @@ const uploadPrediction = async (req, res) => {
     const diseaseMap = {};
     diseases.forEach(d => {
       diseaseMap[d.ten_benh_en] = d;
+      diseaseMap[resolveDiseaseKey(d.ten_benh_en)] = d;
+      diseaseMap[d.ten_benh] = d;
+      diseaseMap[resolveDiseaseKey(d.ten_benh)] = d;
     });
 
     // ✓ 3.4 Xác định bệnh chính (prediction đầu tiên)
@@ -321,7 +373,7 @@ const uploadPrediction = async (req, res) => {
         message: 'Không xác định được kết quả dự đoán',
       });
     }
-    const mainDisease = diseaseMap[mainPrediction.label];
+    const mainDisease = diseaseMap[resolveDiseaseKey(mainPrediction.label)] || diseaseMap[normalizeDiseaseKey(mainPrediction.label)] || diseaseMap[mainPrediction.label];
 
     // Nếu confidence thấp → reject
     if (mainPrediction.confidence < CONFIDENCE_THRESHOLD) {
@@ -512,9 +564,12 @@ const getAdviceForSelectedDisease = async (req, res) => {
       });
     }
 
-    const disease = await Disease.findOne({ ten_benh_en: String(disease_en).trim() })
+    const diseases = await Disease.find({})
       .populate('goi_y_phan_bon', 'ten_phan_bon thanh_phan cong_dung')
       .populate('goi_y_thuoc', 'ten_thuoc loai hoat_chat cach_su_dung muc_do_doc_hai');
+
+    const diseaseMap = buildDiseaseMap(diseases);
+    const disease = diseaseMap[resolveDiseaseKey(disease_en)] || diseaseMap[String(disease_en).trim()] || null;
 
     if (!disease) {
       return res.status(404).json({
@@ -552,10 +607,7 @@ const getAdviceForSelectedDiseases = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Vui lòng gửi danh sách dự đoán (top-k) để tư vấn' });
     }
 
-    // Lấy danh sách disease_en
-    const labels = predictions.map(p => String(p.disease_en).trim()).filter(Boolean);
-
-    const diseases = await Disease.find({ ten_benh_en: { $in: labels } })
+    const diseases = await Disease.find({})
       .populate('goi_y_phan_bon', 'ten_phan_bon thanh_phan cong_dung')
       .populate('goi_y_thuoc', 'ten_thuoc loai hoat_chat cach_su_dung muc_do_doc_hai');
 
@@ -563,9 +615,19 @@ const getAdviceForSelectedDiseases = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Không tìm thấy thông tin bệnh để tư vấn' });
     }
 
-    // build map
-    const diseaseMap = {};
-    diseases.forEach(d => { diseaseMap[d.ten_benh_en] = d; });
+    const diseaseMap = buildDiseaseMap(diseases);
+
+    const resolvedDiseases = predictions
+      .map((p) => {
+        const label = String(p.disease_en || p.label || '').trim();
+        const disease = diseaseMap[resolveDiseaseKey(label)] || diseaseMap[label];
+        return disease;
+      })
+      .filter(Boolean);
+
+    if (resolvedDiseases.length === 0) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy thông tin bệnh để tư vấn' });
+    }
 
     // Normalize predictions shape to { label, confidence } expected by generateAIAdvice
     const normalizedPreds = predictions.map(p => ({

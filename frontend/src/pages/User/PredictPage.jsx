@@ -414,7 +414,7 @@ const PredictPage = () => {
                       Tư Vấn AI từ Gemini
                     </p>
                     {(!selectedTopDisease && !selectedAdvice) ? (
-                      <p className="text-sm text-gray-600">Hãy chọn 1 trong 3 kết quả để xem tư vấn AI.</p>
+                      <p className="text-sm text-gray-600">Đang tạo tư vấn AI...</p>
                     ) : selectedAdviceLoading ? (
                       <div className="space-y-3">
                         <div className="flex items-center gap-3">

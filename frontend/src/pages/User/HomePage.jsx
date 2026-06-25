@@ -225,6 +225,9 @@ const HomePage = () => {
     return numeric <= 1 ? Math.round(numeric * 100) : Math.round(numeric);
   };
 
+  const selectedAdviceTitle = selectedTopDisease?.ten_benh
+    || (multiSelectedPreds.length > 0 ? 'Nhiều bệnh đã chọn' : 'Bệnh đã chọn');
+
   const chartData = useMemo(() => {
     const byDayMap = new Map();
     const byDiseaseMap = new Map();
@@ -584,9 +587,18 @@ const HomePage = () => {
                         <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
                           <FaBrain className="text-purple-600" /> Tư vấn AI từ Gemini
                         </h4>
-                        {!selectedTopDisease ? (
-                          <p className="text-sm text-gray-600">Hãy chọn 1 trong 3 kết quả để xem tư vấn AI.</p>
-                        ) : selectedAdviceLoading ? (
+                        {selectedAdviceLoading ? (
+                          <p className="text-sm text-gray-600">Đang tư vấn AI...</p>
+                        ) : selectedAdvice ? (
+                          <div className="space-y-2">
+                            <p className="text-sm font-semibold text-gray-800">
+                              Tư vấn cho: {selectedAdviceTitle}
+                            </p>
+                            <p className="text-sm text-gray-800 whitespace-pre-wrap text-justify">
+                              {formatAIText(selectedAdvice)}
+                            </p>
+                          </div>
+                        ) : selectedTopDisease ? (
                           <div className="space-y-3">
                             <div className="flex items-center gap-3">
                               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-200 text-purple-700">
@@ -604,14 +616,7 @@ const HomePage = () => {
                             </div>
                           </div>
                         ) : (
-                          <div className="space-y-2">
-                            <p className="text-sm font-semibold text-gray-800">
-                              Tư vấn cho: {selectedTopDisease.ten_benh}
-                            </p>
-                            <p className="text-sm text-gray-800 whitespace-pre-wrap text-justify">
-                              {formatAIText(selectedAdvice)}
-                            </p>
-                          </div>
+                          <p className="text-sm text-gray-600">Chọn một bệnh hoặc nhiều bệnh để nhận tư vấn AI.</p>
                         )}
                       </div>
                     )}
